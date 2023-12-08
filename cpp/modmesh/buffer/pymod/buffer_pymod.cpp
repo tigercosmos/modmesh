@@ -51,6 +51,7 @@ void initialize_buffer(pybind11::module & mod)
 
         wrap_ConcreteBuffer(mod);
         wrap_SimpleArray(mod);
+        wrap_SimpleArrayPlex(mod);
     };
 
     OneTimeInitializer<buffer_pymod_tag>::me()(mod, initialize_impl);

@@ -673,26 +673,84 @@ using SimpleArrayUint64 = SimpleArray<uint64_t>;
 using SimpleArrayFloat32 = SimpleArray<float>;
 using SimpleArrayFloat64 = SimpleArray<double>;
 
+enum class DataType
+{
+    Undefined,
+    Bool,
+    Int8,
+    Int16,
+    Int32,
+    Int64,
+    Uint8,
+    Uint16,
+    Uint32,
+    Uint64,
+    Float32,
+    Float64,
+};
+
+DataType get_data_type_from_string(const std::string & data_type)
+{
+    if (data_type == "bool")
+    {
+        return DataType::Bool;
+    }
+    else if (data_type == "int8")
+    {
+        return DataType::Int8;
+    }
+    else if (data_type == "int16")
+    {
+        return DataType::Int16;
+    }
+    else if (data_type == "int32")
+    {
+        return DataType::Int32;
+    }
+    else if (data_type == "int64")
+    {
+        return DataType::Uint64;
+    }
+    else if (data_type == "uint8")
+    {
+        return DataType::Uint8;
+    }
+    else if (data_type == "uint8")
+    {
+        return DataType::Uint8;
+    }
+    else if (data_type == "uint16")
+    {
+        return DataType::Uint16;
+    }
+    else if (data_type == "uint32")
+    {
+        return DataType::Uint32;
+    }
+    else if (data_type == "uint64")
+    {
+        return DataType::Uint64;
+    }
+    else if (data_type == "float32")
+    {
+        return DataType::Float32;
+    }
+    else if (data_type == "float64")
+    {
+        return DataType::Float64;
+    }
+    throw std::runtime_error("Unsupported datatype");
+}
+
 class SimpleArrayPlex
 {
 public:
     using shape_type = typename detail::shape_type;
 
-    enum class DataType
+    SimpleArrayPlex(const shape_type & shape, const std::string & data_type)
+        : SimpleArrayPlex(shape, get_data_type_from_string(data_type))
     {
-        Undefined,
-        Bool,
-        Int8,
-        Int16,
-        Int32,
-        Int64,
-        Uint8,
-        Uint16,
-        Uint32,
-        Uint64,
-        Float32,
-        Float64,
-    };
+    }
 
     SimpleArrayPlex(const shape_type & shape, DataType data_type)
         : m_data_type(data_type)
@@ -733,7 +791,7 @@ public:
         }
         case DataType::Uint64:
         {
-            m_instance_ptr = reinterpret_cast<void *>(new SimpleArraUint64(shape));
+            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint64(shape));
         }
         case DataType::Float32:
         {
@@ -771,6 +829,8 @@ public:
     {
         delete m_instance_ptr;
     }
+
+    /// TODO: add all SimpleArray public methods
 
 private:
     void * m_instance_ptr = nullptr; /// the pointer of the SimpleArray<T> instance
