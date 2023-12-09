@@ -153,35 +153,6 @@ WrapSimpleArray<T>::WrapSimpleArray(pybind11::module & mod, char const * pyname,
 }
 
 template <typename T>
-wrapper_type & WrapSimpleArray<T>::wrap_modifiers()
-{
-    namespace py = pybind11; // NOLINT(misc-unused-alias-decls)
-
-    (*this)
-        .def("fill", &wrapped_type::fill, py::arg("value"))
-        //
-        ;
-
-    return *this;
-}
-
-template <typename T>
-wrapper_type & WrapSimpleArray<T>::wrap_calculators()
-{
-    namespace py = pybind11; // NOLINT(misc-unused-alias-decls)
-
-    (*this)
-        .def("min", &wrapped_type::min, py::arg("initial") = std::numeric_limits<value_type>::max())
-        .def("max", &wrapped_type::max, py::arg("initial") = std::numeric_limits<value_type>::lowest())
-        .def("sum", &wrapped_type::sum, py::arg("initial") = 0)
-        .def("abs", &wrapped_type::abs)
-        //
-        ;
-
-    return *this;
-}
-
-template <typename T>
 void WrapSimpleArray<T>::setitem_parser(wrapped_type & arr_out, pybind11::args const & args)
 {
     namespace py = pybind11;
@@ -255,7 +226,7 @@ void WrapSimpleArray<T>::copy_slice(slice_type & slice_out, pybind11::slice cons
 }
 
 template <typename T>
-std::vector<slice_type> WrapSimpleArray<T>::make_default_slices(wrapped_type const & arr)
+std::vector<small_vector<int>> WrapSimpleArray<T>::make_default_slices(wrapped_type const & arr)
 {
     std::vector<slice_type> slices;
     slices.reserve(arr.ndim());
@@ -272,8 +243,8 @@ std::vector<slice_type> WrapSimpleArray<T>::make_default_slices(wrapped_type con
 
 template <typename T>
 void WrapSimpleArray<T>::process_slices(pybind11::tuple const & tuple,
-                                     std::vector<slice_type> & slices,
-                                     size_t ndim)
+                                        std::vector<slice_type> & slices,
+                                        size_t ndim)
 {
     namespace py = pybind11;
 
@@ -350,8 +321,8 @@ void WrapSimpleArray<T>::slice_syntax_check(pybind11::tuple const & tuple, size_
 
 template <typename T>
 void WrapSimpleArray<T>::broadcast_array_using_slice(wrapped_type & arr_out,
-                                                  std::vector<slice_type> const & slices,
-                                                  pybind11::array const & arr_in)
+                                                     std::vector<slice_type> const & slices,
+                                                     pybind11::array const & arr_in)
 {
     TypeBroadcast<T>::check_shape(arr_out, slices, arr_in);
 
@@ -391,7 +362,7 @@ void WrapSimpleArray<T>::broadcast_array_using_ellipsis(wrapped_type & arr_out, 
 }
 
 template <typename T>
-WrapSimpleArray<T>::shape_type WrapSimpleArray<T>::make_shape(pybind11::object const & shape_in)
+small_vector<size_t> WrapSimpleArray<T>::make_shape(pybind11::object const & shape_in)
 {
     namespace py = pybind11; // NOLINT(misc-unused-alias-decls)
     shape_type shape;

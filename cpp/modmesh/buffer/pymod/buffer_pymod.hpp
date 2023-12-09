@@ -48,16 +48,39 @@ class MODMESH_PYTHON_WRAPPER_VISIBILITY WrapSimpleArray
     using wrapped_type = typename root_base_type::wrapped_type;
     using wrapper_type = typename root_base_type::wrapper_type;
     using value_type = typename wrapped_type::value_type;
-    using shape_type = typename wrapped_type::shape_type;
+    using shape_type = small_vector<size_t>;
     using slice_type = small_vector<int>;
 
     friend root_base_type;
 
     WrapSimpleArray(pybind11::module & mod, char const * pyname, char const * pydoc);
 
-    wrapper_type & wrap_modifiers();
+    wrapper_type & wrap_modifiers()
+    {
+        namespace py = pybind11; // NOLINT(misc-unused-alias-decls)
 
-    wrapper_type & wrap_calculators();
+        (*this)
+            .def("fill", &wrapped_type::fill, py::arg("value"))
+            //
+            ;
+
+        return *this;
+    }
+
+    wrapper_type & wrap_calculators()
+    {
+        namespace py = pybind11; // NOLINT(misc-unused-alias-decls)
+
+        (*this)
+            .def("min", &wrapped_type::min, py::arg("initial") = std::numeric_limits<value_type>::max())
+            .def("max", &wrapped_type::max, py::arg("initial") = std::numeric_limits<value_type>::lowest())
+            .def("sum", &wrapped_type::sum, py::arg("initial") = 0)
+            .def("abs", &wrapped_type::abs)
+            //
+            ;
+
+        return *this;
+    }
 
     static void setitem_parser(wrapped_type & arr_out, pybind11::args const & args);
 
