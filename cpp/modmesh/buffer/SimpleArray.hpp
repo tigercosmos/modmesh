@@ -30,8 +30,8 @@
 
 #include <modmesh/buffer/ConcreteBuffer.hpp>
 
-#include <stdexcept>
 #include <limits>
+#include <stdexcept>
 
 #if defined(_MSC_VER)
 #include <BaseTsd.h>
@@ -40,6 +40,8 @@ typedef SSIZE_T ssize_t;
 
 namespace modmesh
 {
+
+class SimpleArrayPlex; /// forward declaration
 
 namespace detail
 {
@@ -82,13 +84,17 @@ inline size_t buffer_offset(small_vector<size_t> const & stride, small_vector<si
 namespace detail
 {
 
+using shape_type = small_vector<size_t>;
+using sshape_type = small_vector<ssize_t>;
+using buffer_type = ConcreteBuffer;
+
 template <typename T>
 struct SimpleArrayInternalTypes
 {
+    using shape_type = detail::shape_type;
+    using sshape_type = detail::sshape_type;
+    using buffer_type = detail::buffer_type;
     using value_type = T;
-    using shape_type = small_vector<size_t>;
-    using sshape_type = small_vector<ssize_t>;
-    using buffer_type = ConcreteBuffer;
 }; /* end class SimpleArrayInternalType */
 
 template <typename A, typename T>
@@ -644,6 +650,7 @@ private:
     size_t m_nghost = 0;
     value_type * m_body = nullptr;
 
+    friend SimpleArrayPlex;
 }; /* end class SimpleArray */
 
 template <typename S>
@@ -653,6 +660,122 @@ using is_simple_array = std::is_same<
 
 template <typename S>
 inline constexpr bool is_simple_array_v = is_simple_array<S>::value;
+
+using SimpleArrayBool = SimpleArray<bool>;
+using SimpleArrayInt8 = SimpleArray<int8_t>;
+using SimpleArrayInt16 = SimpleArray<int16_t>;
+using SimpleArrayInt32 = SimpleArray<int32_t>;
+using SimpleArrayInt64 = SimpleArray<int64_t>;
+using SimpleArrayUint8 = SimpleArray<uint8_t>;
+using SimpleArrayUint16 = SimpleArray<uint16_t>;
+using SimpleArrayUint32 = SimpleArray<uint32_t>;
+using SimpleArrayUint64 = SimpleArray<uint64_t>;
+using SimpleArrayFloat32 = SimpleArray<float>;
+using SimpleArrayFloat64 = SimpleArray<double>;
+
+class SimpleArrayPlex
+{
+public:
+    using shape_type = typename detail::shape_type;
+
+    enum class DataType
+    {
+        Undefined,
+        Bool,
+        Int8,
+        Int16,
+        Int32,
+        Int64,
+        Uint8,
+        Uint16,
+        Uint32,
+        Uint64,
+        Float32,
+        Float64,
+    };
+
+    SimpleArrayPlex(const shape_type & shape, DataType data_type)
+        : m_data_type(data_type)
+    {
+        switch (data_type)
+        {
+        case DataType::Bool:
+        {
+            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayBool(shape));
+        }
+        case DataType::Int8:
+        {
+            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt8(shape));
+        }
+        case DataType::Int16:
+        {
+            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt16(shape));
+        }
+        case DataType::Int32:
+        {
+            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt32(shape));
+        }
+        case DataType::Int64:
+        {
+            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt64(shape));
+        }
+        case DataType::Uint8:
+        {
+            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint8(shape));
+        }
+        case DataType::Uint16:
+        {
+            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint16(shape));
+        }
+        case DataType::Uint32:
+        {
+            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint32(shape));
+        }
+        case DataType::Uint64:
+        {
+            m_instance_ptr = reinterpret_cast<void *>(new SimpleArraUint64(shape));
+        }
+        case DataType::Float32:
+        {
+            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayFloat32(shape));
+        }
+        case DataType::Float64:
+        {
+            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayFloat64(shape));
+        }
+        default:
+        {
+            throw std::runtime_error("Unsupported datatype");
+        }
+        }
+    }
+
+    template <typename T>
+    SimpleArrayPlex(const SimpleArray<T> & array, DataType data_type)
+        : m_data_type(data_type)
+    {
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArray<T>(array));
+    }
+
+    DataType data_type() const
+    {
+        return m_data_type;
+    }
+
+    const void * instance_ptr() const
+    {
+        return m_instance_ptr;
+    }
+
+    ~SimpleArrayPlex
+    {
+        delete m_instance_ptr;
+    }
+
+private:
+    void * m_instance_ptr = nullptr; /// the pointer of the SimpleArray<T> instance
+    DataType m_data_type = DataType::Undefined; /// the data type for array casting
+}
 
 } /* end namespace modmesh */
 
