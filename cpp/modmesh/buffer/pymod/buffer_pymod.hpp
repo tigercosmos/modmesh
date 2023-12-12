@@ -39,6 +39,71 @@ namespace modmesh
 namespace python
 {
 
+template <typename T>
+class MODMESH_PYTHON_WRAPPER_VISIBILITY WrapSimpleArray
+    : public WrapBase<WrapSimpleArray<T>, SimpleArray<T>>
+{
+
+    using root_base_type = WrapBase<WrapSimpleArray<T>, SimpleArray<T>>;
+    using wrapped_type = typename root_base_type::wrapped_type;
+    using wrapper_type = typename root_base_type::wrapper_type;
+    using value_type = typename wrapped_type::value_type;
+    using shape_type = typename wrapped_type::shape_type;
+    using slice_type = small_vector<int>;
+
+    friend root_base_type;
+
+    WrapSimpleArray(pybind11::module & mod, char const * pyname, char const * pydoc);
+
+    wrapper_type & wrap_modifiers();
+
+    wrapper_type & wrap_calculators();
+
+    static void setitem_parser(wrapped_type & arr_out, pybind11::args const & args);
+
+    static void copy_slice(slice_type & slice_out, pybind11::slice const & slice_in);
+    static std::vector<slice_type> make_default_slices(wrapped_type const & arr);
+
+    static void process_slices(pybind11::tuple const & tuple,
+                               std::vector<slice_type> & slices,
+                               size_t ndim);
+
+    static void slice_syntax_check(pybind11::tuple const & tuple, size_t ndim);
+    static void broadcast_array_using_slice(wrapped_type & arr_out,
+                                            std::vector<slice_type> const & slices,
+                                            pybind11::array const & arr_in);
+
+    static void broadcast_array_using_ellipsis(wrapped_type & arr_out, pybind11::array const & arr_in);
+
+    static shape_type make_shape(pybind11::object const & shape_in);
+}; /* end class WrapSimpleArray */
+
+using WrapSimpleArrayBool = WrapSimpleArray<bool>;
+using WrapSimpleArrayInt8 = WrapSimpleArray<int8_t>;
+using WrapSimpleArrayInt16 = WrapSimpleArray<int16_t>;
+using WrapSimpleArrayInt32 = WrapSimpleArray<int32_t>;
+using WrapSimpleArrayInt64 = WrapSimpleArray<int64_t>;
+using WrapSimpleArrayUint8 = WrapSimpleArray<uint8_t>;
+using WrapSimpleArrayUint16 = WrapSimpleArray<uint16_t>;
+using WrapSimpleArrayUint32 = WrapSimpleArray<uint32_t>;
+using WrapSimpleArrayUint64 = WrapSimpleArray<uint64_t>;
+using WrapSimpleArrayFloat32 = WrapSimpleArray<float>;
+using WrapSimpleArrayFloat64 = WrapSimpleArray<double>;
+
+class MODMESH_PYTHON_WRAPPER_VISIBILITY WrapSimpleArrayPlex : public WrapBase<WrapSimpleArrayPlex, SimpleArrayPlex>
+{
+    using root_base_type = WrapBase<WrapSimpleArrayPlex, SimpleArrayPlex>;
+    using wrapped_type = typename root_base_type::wrapped_type;
+    using wrapper_type = typename root_base_type::wrapper_type;
+    using shape_type = modmesh::detail::shape_type;
+
+    friend root_base_type;
+
+    WrapSimpleArrayPlex(pybind11::module & mod, char const * pyname, char const * pydoc);
+
+    static shape_type make_shape(pybind11::object const & shape_in);
+}; /* end of class WrapSimpleArrayPlex*/
+
 void initialize_buffer(pybind11::module & mod);
 void wrap_ConcreteBuffer(pybind11::module & mod);
 void wrap_SimpleArray(pybind11::module & mod);

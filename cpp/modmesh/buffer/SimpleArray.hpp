@@ -689,124 +689,19 @@ enum class DataType
     Float64,
 };
 
-DataType get_data_type_from_string(const std::string & data_type)
-{
-    if (data_type == "bool")
-    {
-        return DataType::Bool;
-    }
-    else if (data_type == "int8")
-    {
-        return DataType::Int8;
-    }
-    else if (data_type == "int16")
-    {
-        return DataType::Int16;
-    }
-    else if (data_type == "int32")
-    {
-        return DataType::Int32;
-    }
-    else if (data_type == "int64")
-    {
-        return DataType::Uint64;
-    }
-    else if (data_type == "uint8")
-    {
-        return DataType::Uint8;
-    }
-    else if (data_type == "uint8")
-    {
-        return DataType::Uint8;
-    }
-    else if (data_type == "uint16")
-    {
-        return DataType::Uint16;
-    }
-    else if (data_type == "uint32")
-    {
-        return DataType::Uint32;
-    }
-    else if (data_type == "uint64")
-    {
-        return DataType::Uint64;
-    }
-    else if (data_type == "float32")
-    {
-        return DataType::Float32;
-    }
-    else if (data_type == "float64")
-    {
-        return DataType::Float64;
-    }
-    throw std::runtime_error("Unsupported datatype");
-}
+DataType get_data_type_from_string(const std::string & data_type);
 
 class SimpleArrayPlex
 {
 public:
-    using shape_type = typename detail::shape_type;
+    using shape_type = detail::shape_type;
 
     SimpleArrayPlex(const shape_type & shape, const std::string & data_type)
         : SimpleArrayPlex(shape, get_data_type_from_string(data_type))
     {
     }
 
-    SimpleArrayPlex(const shape_type & shape, DataType data_type)
-        : m_data_type(data_type)
-    {
-        switch (data_type)
-        {
-        case DataType::Bool:
-        {
-            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayBool(shape));
-        }
-        case DataType::Int8:
-        {
-            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt8(shape));
-        }
-        case DataType::Int16:
-        {
-            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt16(shape));
-        }
-        case DataType::Int32:
-        {
-            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt32(shape));
-        }
-        case DataType::Int64:
-        {
-            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt64(shape));
-        }
-        case DataType::Uint8:
-        {
-            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint8(shape));
-        }
-        case DataType::Uint16:
-        {
-            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint16(shape));
-        }
-        case DataType::Uint32:
-        {
-            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint32(shape));
-        }
-        case DataType::Uint64:
-        {
-            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint64(shape));
-        }
-        case DataType::Float32:
-        {
-            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayFloat32(shape));
-        }
-        case DataType::Float64:
-        {
-            m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayFloat64(shape));
-        }
-        default:
-        {
-            throw std::runtime_error("Unsupported datatype");
-        }
-        }
-    }
+    SimpleArrayPlex(const shape_type & shape, DataType data_type);
 
     template <typename T>
     SimpleArrayPlex(const SimpleArray<T> & array, DataType data_type)
@@ -825,17 +720,14 @@ public:
         return m_instance_ptr;
     }
 
-    ~SimpleArrayPlex
-    {
-        delete m_instance_ptr;
-    }
+    ~SimpleArrayPlex();
 
     /// TODO: add all SimpleArray public methods
 
 private:
     void * m_instance_ptr = nullptr; /// the pointer of the SimpleArray<T> instance
     DataType m_data_type = DataType::Undefined; /// the data type for array casting
-}
+};
 
 } /* end namespace modmesh */
 
