@@ -36,12 +36,12 @@ namespace modmesh
 namespace python
 {
 
-struct SimpleArrayHelper
+struct TestSimpleArrayHelper
 {
 };
 
 class MODMESH_PYTHON_WRAPPER_VISIBILITY WrapTestSimpleArrayHelper
-    : public WrapBase<WrapTestSimpleArrayHelper, SimpleArrayHelper>
+    : public WrapBase<WrapTestSimpleArrayHelper, TestSimpleArrayHelper>
 {
 
 public:
@@ -58,7 +58,7 @@ protected:
         (*this)
             .def("test_cast_int32_array", [](modmesh::SimpleArrayInt32 & array) -> bool
                  { return true; })
-            .def("test_cast_float64_array", [](modmesh::SimpleArrayInt64 & array) -> bool
+            .def("test_cast_float64_array", [](modmesh::SimpleArrayFloat64 & array) -> bool
                  { return true; })
             //
             ;
@@ -68,7 +68,7 @@ protected:
 
 void wrap_TestSimpleArrayHelper(pybind11::module & mod)
 {
-    WrapTestSimpleArrayHelper::commit(mod, "SimpleArrayHelper", "SimpleArrayHelper");
+    WrapTestSimpleArrayHelper::commit(mod, "TestSimpleArrayHelper", "TestSimpleArrayHelper");
 }
 
 } /* end namespace python */
