@@ -28,6 +28,7 @@
 #include <modmesh/onedim/pymod/onedim_pymod.hpp>
 #include <modmesh/spacetime/pymod/spacetime_pymod.hpp>
 #include <modmesh/inout/pymod/inout_pymod.hpp>
+#include <modmesh/testhelper/pymod/testbuffer_pymod.hpp>
 #ifdef QT_CORE_LIB
 #include <modmesh/view/wrap_view.hpp>
 #endif // QT_CORE_LIB
@@ -49,6 +50,9 @@ void initialize(pybind11::module_ mod)
     initialize_spacetime(spacetime_mod);
     pybind11::module_ onedim_mod = mod.def_submodule("onedim", "onedim");
     initialize_onedim(onedim_mod);
+    pybind11::module_ testhelper_mod = mod.def_submodule("testhelper", "testhelper");
+    initialize_testbuffer(testhelper_mod);
+
 #ifdef QT_CORE_LIB
     mod.attr("HAS_VIEW") = true;
     pybind11::module_ view_mod = mod.def_submodule("view", "view");

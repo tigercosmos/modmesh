@@ -39,6 +39,7 @@ add_subdirectory(python)
 add_subdirectory(spacetime)
 add_subdirectory(view)
 add_subdirectory(inout)
+add_subdirectory(testhelper)
 
 set(MODMESH_ROOT_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/modmesh.hpp
@@ -84,6 +85,7 @@ set(MODMESH_TERMINAL_FILES
     ${MODMESH_SPACETIME_FILES}
     ${MODMESH_PYTHON_FILES}
     ${MODMESH_INOUT_FILES}
+    ${MODMESH_TESTHELPER_FILES}
     CACHE FILEPATH "" FORCE)
 
 set(MODMESH_GRAPHIC_FILES
