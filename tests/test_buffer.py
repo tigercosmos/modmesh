@@ -597,6 +597,30 @@ class SimpleArrayBasicTC(unittest.TestCase):
             for j in range(3):
                 for k in range(4):
                     self.assertEqual(ndarr2[i, j, k], sarr[i - G, j, k])
+                    
+    def test_SimpleArray_casting(self):
+        array_float64 = modmesh.SimpleArrayFloat64((2, 3, 4))
+        self.assertEqual(modmesh.testhelper.TestSimpleArrayHelper.test_cast_float64_array(array_float64), True)
+        
+        arrayplex_int32 = modmesh.SimpleArray((2, 3, 4), dtype="int32")
+        arrayplex_uint64 = modmesh.SimpleArray((2, 3, 4), dtype="uint64")
+        arrayplex_float64 = modmesh.SimpleArray((2, 3, 4), dtype="float64")
+        
+        self.assertEqual(modmesh.testhelper.TestSimpleArrayHelper.test_cast_int32_array(arrayplex_int32), True)
+    
+        with self.assertRaisesRegex(
+            IndexError,
+            r"TypeError"
+        ):
+            modmesh.testhelper.TestSimpleArrayHelper.test_cast_int32_array(arrayplex_uint64)
+            
+        self.assertEqual(modmesh.testhelper.TestSimpleArrayHelper.test_cast_float64_array(arrayplex_float64), True)
+    
+        with self.assertRaisesRegex(
+            IndexError,
+            r"TypeError"
+        ):
+            modmesh.testhelper.TestSimpleArrayHelper.test_cast_float64_array(arrayplex_int32)
 
 
 class SimpleArrayCalculatorsTC(unittest.TestCase):
