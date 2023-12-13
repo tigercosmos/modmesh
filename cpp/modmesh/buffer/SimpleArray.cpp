@@ -153,6 +153,11 @@ SimpleArrayPlex::SimpleArrayPlex(const shape_type & shape, DataType data_type)
 
 SimpleArrayPlex::~SimpleArrayPlex()
 {
+    if (m_instance_ptr == nullptr)
+    {
+        return;
+    }
+
     switch (m_data_type)
     {
     case DataType::Bool:
@@ -213,6 +218,8 @@ SimpleArrayPlex::~SimpleArrayPlex()
     default:
         break;
     }
+
+    m_instance_ptr = nullptr;
 }
 
 } // namespace modmesh

@@ -649,8 +649,6 @@ private:
 
     size_t m_nghost = 0;
     value_type * m_body = nullptr;
-
-    friend SimpleArrayPlex;
 }; /* end class SimpleArray */
 
 template <typename S>

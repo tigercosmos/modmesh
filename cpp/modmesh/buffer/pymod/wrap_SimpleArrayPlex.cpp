@@ -65,6 +65,7 @@ namespace detail
             /* construct the new array from the arrayplex */                                                                                                  \
             const modmesh::SimpleArray##DATATYPE * array_from_arrayplex = reinterpret_cast<const modmesh::SimpleArray##DATATYPE *>(arrayplex.instance_ptr()); \
             value = modmesh::SimpleArray##DATATYPE(*array_from_arrayplex);                                                                                    \
+            return true;                                                                                                                                      \
         }                                                                                                                                                     \
                                                                                                                                                               \
         /* Conversion from C++ to Python object */                                                                                                            \
@@ -139,7 +140,6 @@ class MODMESH_PYTHON_WRAPPER_VISIBILITY WrapSimpleArrayPlex : public WrapBase<Wr
 
 void wrap_SimpleArrayPlex(pybind11::module & mod)
 {
-    namespace py = pybind11; // NOLINT(misc-unused-alias-decls)
     WrapSimpleArrayPlex::commit(mod, "SimpleArray", "SimpleArray");
 
     // Register the type caster
