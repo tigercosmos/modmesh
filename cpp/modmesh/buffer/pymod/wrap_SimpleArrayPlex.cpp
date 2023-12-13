@@ -99,33 +99,43 @@ namespace modmesh
 namespace python
 {
 
-WrapSimpleArrayPlex::WrapSimpleArrayPlex(pybind11::module & mod, char const * pyname, char const * pydoc)
-    : root_base_type(mod, pyname, pydoc, pybind11::buffer_protocol())
+class MODMESH_PYTHON_WRAPPER_VISIBILITY WrapSimpleArrayPlex : public WrapBase<WrapSimpleArrayPlex, SimpleArrayPlex>
 {
-    (*this)
-        .def_timed(
-            pybind11::init(
-                [](pybind11::object const & shape, std::string const & datatype)
-                { return wrapped_type(make_shape(shape), datatype); }),
-            pybind11::arg("shape"),
-            pybind11::arg("dtype"))
-        /// TODO: should have the same interface as WrapSimpleArray
-        ;
-}
+    using root_base_type = WrapBase<WrapSimpleArrayPlex, SimpleArrayPlex>;
+    using wrapped_type = typename root_base_type::wrapped_type;
+    using wrapper_type = typename root_base_type::wrapper_type;
+    using shape_type = modmesh::detail::shape_type;
 
-WrapSimpleArrayPlex::shape_type WrapSimpleArrayPlex::make_shape(pybind11::object const & shape_in)
-{
-    shape_type shape;
-    try
+    friend root_base_type;
+
+    WrapSimpleArrayPlex(pybind11::module & mod, char const * pyname, char const * pydoc)
+        : root_base_type(mod, pyname, pydoc, pybind11::buffer_protocol())
     {
-        shape.push_back(shape_in.cast<size_t>());
+        (*this)
+            .def(
+                pybind11::init(
+                    [](pybind11::object const & shape, std::string const & datatype)
+                    { return wrapped_type(make_shape(shape), datatype); }),
+                pybind11::arg("shape"),
+                pybind11::arg("dtype"))
+            /// TODO: should have the same interface as WrapSimpleArray
+            ;
     }
-    catch (const pybind11::cast_error &)
+
+    static shape_type make_shape(pybind11::object const & shape_in)
     {
-        shape = shape_in.cast<std::vector<size_t>>();
+        shape_type shape;
+        try
+        {
+            shape.push_back(shape_in.cast<size_t>());
+        }
+        catch (const pybind11::cast_error &)
+        {
+            shape = shape_in.cast<std::vector<size_t>>();
+        }
+        return shape;
     }
-    return shape;
-}
+}; /* end of class WrapSimpleArrayPlex*/
 
 void wrap_SimpleArrayPlex(pybind11::module & mod)
 {
