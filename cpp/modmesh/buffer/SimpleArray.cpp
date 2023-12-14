@@ -84,6 +84,18 @@ DataType get_data_type_from_string(const std::string & data_type)
     throw std::runtime_error("Unsupported datatype");
 }
 
+template <typename T = bool>
+bool is_same_data_type<T>(DataType data_type)
+{
+    return std::is_same<T, bool>::value && data_type == DataType::Bool;
+}
+
+template <typename T = int8_t>
+bool is_same_data_type<T>(DataType data_type)
+{
+    return std::is_same<T, int8_t>::value && data_type == DataType::Int8;
+}
+
 SimpleArrayPlex::SimpleArrayPlex(const shape_type & shape, DataType data_type)
     : m_data_type(data_type)
 {

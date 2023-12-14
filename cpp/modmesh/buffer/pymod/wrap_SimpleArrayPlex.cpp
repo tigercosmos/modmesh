@@ -36,60 +36,60 @@ namespace pybind11
 namespace detail
 {
 
-#define ARRAYPLEX_TYPE_CASTER(DATATYPE)                                                                                                                       \
-    template <> /* NOLINTNEXTLINE(bugprone-macro-parentheses) */                                                                                              \
-    struct type_caster<modmesh::SimpleArray##DATATYPE>                                                                                                        \
-    {                                                                                                                                                         \
-                                                                                                                                                              \
-    public:                                                                                                                                                   \
-        PYBIND11_TYPE_CASTER(modmesh::SimpleArray##DATATYPE, _("SimpleArray" #DATATYPE));                                                                     \
-                                                                                                                                                              \
-        /* Conversion from Python object to C++ */                                                                                                            \
-        bool load(pybind11::handle src, bool convert)                                                                                                         \
-        {                                                                                                                                                     \
-            /* Check if the source object is a valid SimpleArrayPlex  */                                                                                      \
-            if (!pybind11::isinstance<modmesh::SimpleArrayPlex>(src))                                                                                         \
-            {                                                                                                                                                 \
-                return false;                                                                                                                                 \
-            }                                                                                                                                                 \
-                                                                                                                                                              \
-            /* Get the SimpleArrayPlex object from the source handle */                                                                                       \
-            modmesh::SimpleArrayPlex arrayplex = src.cast<modmesh::SimpleArrayPlex>();                                                                        \
-                                                                                                                                                              \
-            /* Check if the data type is matched */                                                                                                           \
-            if (arrayplex.data_type() != modmesh::DataType::DATATYPE)                                                                                         \
-            {                                                                                                                                                 \
-                return false;                                                                                                                                 \
-            }                                                                                                                                                 \
-                                                                                                                                                              \
-            /* construct the new array from the arrayplex */                                                                                                  \
-            const modmesh::SimpleArray##DATATYPE * array_from_arrayplex = reinterpret_cast<const modmesh::SimpleArray##DATATYPE *>(arrayplex.instance_ptr()); \
-            value = modmesh::SimpleArray##DATATYPE(*array_from_arrayplex);                                                                                    \
-            return true;                                                                                                                                      \
-        }                                                                                                                                                     \
-                                                                                                                                                              \
-        /* Conversion from C++ to Python object */                                                                                                            \
-        static pybind11::handle cast(const modmesh::SimpleArray##DATATYPE & src, pybind11::return_value_policy, pybind11::handle)                             \
-        {                                                                                                                                                     \
-            /* create an arrayplex from the array */                                                                                                          \
-            modmesh::SimpleArrayPlex arrayplex(src, modmesh::DataType::DATATYPE);                                                                             \
-                                                                                                                                                              \
-            /* Return the Python object representing the converted SimpleArrayPlex */                                                                         \
-            return pybind11::cast(arrayplex, pybind11::return_value_policy::move);                                                                            \
-        }                                                                                                                                                     \
-    }
+// #define ARRAYPLEX_TYPE_CASTER(DATATYPE)                                                                                                                       \
+//     template <> /* NOLINTNEXTLINE(bugprone-macro-parentheses) */                                                                                              \
+//     struct type_caster<modmesh::SimpleArray##DATATYPE>                                                                                                        \
+//     {                                                                                                                                                         \
+//                                                                                                                                                               \
+//     public:                                                                                                                                                   \
+//         PYBIND11_TYPE_CASTER(modmesh::SimpleArray##DATATYPE, _("SimpleArray" #DATATYPE));                                                                     \
+//                                                                                                                                                               \
+//         /* Conversion from Python object to C++ */                                                                                                            \
+//         bool load(pybind11::handle src, bool convert)                                                                                                         \
+//         {                                                                                                                                                     \
+//             /* Check if the source object is a valid SimpleArrayPlex  */                                                                                      \
+//             if (!pybind11::isinstance<modmesh::SimpleArrayPlex>(src))                                                                                         \
+//             {                                                                                                                                                 \
+//                 return false;                                                                                                                                 \
+//             }                                                                                                                                                 \
+//                                                                                                                                                               \
+//             /* Get the SimpleArrayPlex object from the source handle */                                                                                       \
+//             modmesh::SimpleArrayPlex arrayplex = src.cast<modmesh::SimpleArrayPlex>();                                                                        \
+//                                                                                                                                                               \
+//             /* Check if the data type is matched */                                                                                                           \
+//             if (arrayplex.data_type() != modmesh::DataType::DATATYPE)                                                                                         \
+//             {                                                                                                                                                 \
+//                 return false;                                                                                                                                 \
+//             }                                                                                                                                                 \
+//                                                                                                                                                               \
+//             /* construct the new array from the arrayplex */                                                                                                  \
+//             const modmesh::SimpleArray##DATATYPE * array_from_arrayplex = reinterpret_cast<const modmesh::SimpleArray##DATATYPE *>(arrayplex.instance_ptr()); \
+//             value = modmesh::SimpleArray##DATATYPE(*array_from_arrayplex);                                                                                    \
+//             return true;                                                                                                                                      \
+//         }                                                                                                                                                     \
+//                                                                                                                                                               \
+//         /* Conversion from C++ to Python object */                                                                                                            \
+//         static pybind11::handle cast(const modmesh::SimpleArray##DATATYPE & src, pybind11::return_value_policy, pybind11::handle)                             \
+//         {                                                                                                                                                     \
+//             /* create an arrayplex from the array */                                                                                                          \
+//             modmesh::SimpleArrayPlex arrayplex(src, modmesh::DataType::DATATYPE);                                                                             \
+//                                                                                                                                                               \
+//             /* Return the Python object representing the converted SimpleArrayPlex */                                                                         \
+//             return pybind11::cast(arrayplex, pybind11::return_value_policy::move);                                                                            \
+//         }                                                                                                                                                     \
+//     }
 
-ARRAYPLEX_TYPE_CASTER(Bool);
-ARRAYPLEX_TYPE_CASTER(Int8);
-ARRAYPLEX_TYPE_CASTER(Int16);
-ARRAYPLEX_TYPE_CASTER(Int32);
-ARRAYPLEX_TYPE_CASTER(Int64);
-ARRAYPLEX_TYPE_CASTER(Uint8);
-ARRAYPLEX_TYPE_CASTER(Uint16);
-ARRAYPLEX_TYPE_CASTER(Uint32);
-ARRAYPLEX_TYPE_CASTER(Uint64);
-ARRAYPLEX_TYPE_CASTER(Float32);
-ARRAYPLEX_TYPE_CASTER(Float64);
+// ARRAYPLEX_TYPE_CASTER(Bool);
+// ARRAYPLEX_TYPE_CASTER(Int8);
+// ARRAYPLEX_TYPE_CASTER(Int16);
+// ARRAYPLEX_TYPE_CASTER(Int32);
+// ARRAYPLEX_TYPE_CASTER(Int64);
+// ARRAYPLEX_TYPE_CASTER(Uint8);
+// ARRAYPLEX_TYPE_CASTER(Uint16);
+// ARRAYPLEX_TYPE_CASTER(Uint32);
+// ARRAYPLEX_TYPE_CASTER(Uint64);
+// ARRAYPLEX_TYPE_CASTER(Float32);
+// ARRAYPLEX_TYPE_CASTER(Float64);
 
 } // namespace detail
 } // namespace pybind11
