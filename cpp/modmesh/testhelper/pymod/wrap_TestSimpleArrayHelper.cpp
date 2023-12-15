@@ -29,6 +29,8 @@
 #include <modmesh/testhelper/pymod/testbuffer_pymod.hpp> // Must be the first include.
 
 #include <modmesh/buffer/buffer.hpp>
+#include <modmesh/buffer/pymod/SimpleArrayCaster.hpp>
+
 
 namespace modmesh
 {
@@ -56,6 +58,8 @@ protected:
         namespace py = pybind11;
 
         (*this)
+            .def("test_cast_arrayplex", [](modmesh::SimpleArrayPlex & array) -> bool
+                 { return true; })
             .def("test_cast_int32_array", [](modmesh::SimpleArrayInt32 & array) -> bool
                  { return true; })
             .def("test_cast_float64_array", [](modmesh::SimpleArrayFloat64 & array) -> bool

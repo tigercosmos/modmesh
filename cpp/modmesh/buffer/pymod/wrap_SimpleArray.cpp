@@ -425,19 +425,6 @@ void wrap_SimpleArray(pybind11::module & mod)
     WrapSimpleArray<uint64_t>::commit(mod, "SimpleArrayUint64", "SimpleArrayUint64");
     WrapSimpleArray<float>::commit(mod, "SimpleArrayFloat32", "SimpleArrayFloat32");
     WrapSimpleArray<double>::commit(mod, "SimpleArrayFloat64", "SimpleArrayFloat64");
-
-    // Register the type caster
-    pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayBool>();
-    pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayInt8>();
-    pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayInt16>();
-    pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayInt32>();
-    pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayInt64>();
-    pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayUint8>();
-    pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayUint16>();
-    pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayUint32>();
-    pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayUint64>();
-    pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayFloat32>();
-    pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayFloat64>();
 }
 
 } /* end namespace python */
