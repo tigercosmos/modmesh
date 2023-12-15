@@ -90,19 +90,6 @@ class MODMESH_PYTHON_WRAPPER_VISIBILITY WrapSimpleArray
                         return wrapped_type(shape, buffer);
                     }),
                 py::arg("array"))
-            .def(
-                py::init(
-                    [](SimpleArrayPlex & arrayplex)
-                    {
-                        if (arrayplex.data_type() != modmesh::DataType::DATATYPE)
-                        {
-                            return false;
-                        }
-
-                        const wrapped_type * array_from_arrayplex = reinterpret_cast<const wrapped_type *>(arrayplex.instance_ptr());
-                        return wrapped_type(*array_from_arrayplex);
-                    }),
-                py::arg("array"))
             .def_buffer(
                 [](wrapped_type & self)
                 {

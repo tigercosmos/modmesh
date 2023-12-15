@@ -84,16 +84,70 @@ DataType get_data_type_from_string(const std::string & data_type)
     throw std::runtime_error("Unsupported datatype");
 }
 
-template <typename T = bool>
-bool is_same_data_type<T>(DataType data_type)
+template <>
+bool check_data_type<bool>(DataType data_type)
 {
-    return std::is_same<T, bool>::value && data_type == DataType::Bool;
+    return data_type == DataType::Bool;
 }
 
-template <typename T = int8_t>
-bool is_same_data_type<T>(DataType data_type)
+template <>
+bool check_data_type<int8_t>(DataType data_type)
 {
-    return std::is_same<T, int8_t>::value && data_type == DataType::Int8;
+    return data_type == DataType::Int8;
+}
+
+template <>
+bool check_data_type<int16_t>(DataType data_type)
+{
+    return data_type == DataType::Int16;
+}
+
+template <>
+bool check_data_type<int32_t>(DataType data_type)
+{
+    return data_type == DataType::Int32;
+}
+
+template <>
+bool check_data_type<int64_t>(DataType data_type)
+{
+    return data_type == DataType::Int64;
+}
+
+template <>
+bool check_data_type<uint8_t>(DataType data_type)
+{
+    return data_type == DataType::Uint8;
+}
+
+template <>
+bool check_data_type<uint16_t>(DataType data_type)
+{
+    return data_type == DataType::Uint16;
+}
+
+template <>
+bool check_data_type<uint32_t>(DataType data_type)
+{
+    return data_type == DataType::Uint32;
+}
+
+template <>
+bool check_data_type<uint64_t>(DataType data_type)
+{
+    return data_type == DataType::Uint64;
+}
+
+template <>
+bool check_data_type<float>(DataType data_type)
+{
+    return data_type == DataType::Float32;
+}
+
+template <>
+bool check_data_type<double>(DataType data_type)
+{
+    return data_type == DataType::Float64;
 }
 
 SimpleArrayPlex::SimpleArrayPlex(const shape_type & shape, DataType data_type)

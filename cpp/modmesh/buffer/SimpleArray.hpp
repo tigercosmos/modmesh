@@ -690,7 +690,7 @@ enum class DataType
 DataType get_data_type_from_string(const std::string & data_type);
 
 template<typename T>
-bool is_same_data_type<T>(DataType data_type);
+bool check_data_type(DataType data_type);
 
 class SimpleArrayPlex
 {
