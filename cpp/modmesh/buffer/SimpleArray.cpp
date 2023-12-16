@@ -57,10 +57,6 @@ DataType get_data_type_from_string(const std::string & data_type)
     {
         return DataType::Uint8;
     }
-    else if (data_type == "uint8")
-    {
-        return DataType::Uint8;
-    }
     else if (data_type == "uint16")
     {
         return DataType::Uint16;
@@ -151,8 +147,10 @@ DataType get_data_type_from_type<double>()
 }
 
 SimpleArrayPlex::SimpleArrayPlex(const shape_type & shape, DataType data_type)
-    : m_data_type(data_type)
 {
+    m_data_type = data_type;
+    m_has_instance_ownership = true;
+
     switch (data_type)
     {
     case DataType::Bool:
@@ -219,74 +217,80 @@ SimpleArrayPlex::SimpleArrayPlex(const shape_type & shape, DataType data_type)
 
 SimpleArrayPlex::SimpleArrayPlex(SimpleArrayPlex const & other)
 {
-    m_has_instance_ownership = true;
     m_data_type = other.m_data_type;
+
+    if (!other.m_instance_ptr)
+    {
+        return; // other does not have instance
+    }
+
+    m_has_instance_ownership = true;
 
     switch (other.m_data_type)
     {
     case DataType::Bool:
     {
-        auto * array = static_cast<SimpleArrayBool *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayBool *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayBool(*array));
         break;
     }
     case DataType::Int8:
     {
-        auto * array = static_cast<SimpleArrayInt8 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayInt8 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt8(*array));
         break;
     }
     case DataType::Int16:
     {
-        auto * array = static_cast<SimpleArrayInt16 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayInt16 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt16(*array));
         break;
     }
     case DataType::Int32:
     {
-        auto * array = static_cast<SimpleArrayInt32 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayInt32 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt32(*array));
         break;
     }
     case DataType::Int64:
     {
-        auto * array = static_cast<SimpleArrayInt64 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayInt64 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt64(*array));
         break;
     }
     case DataType::Uint8:
     {
-        auto * array = static_cast<SimpleArrayUint8 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayUint8 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint8(*array));
         break;
     }
     case DataType::Uint16:
     {
-        auto * array = static_cast<SimpleArrayUint16 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayUint16 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint16(*array));
         break;
     }
     case DataType::Uint32:
     {
-        auto * array = static_cast<SimpleArrayUint32 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayUint32 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint32(*array));
         break;
     }
     case DataType::Uint64:
     {
-        auto * array = static_cast<SimpleArrayUint64 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayUint64 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint64(*array));
         break;
     }
     case DataType::Float32:
     {
-        auto * array = static_cast<SimpleArrayFloat32 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayFloat32 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayFloat32(*array));
         break;
     }
     case DataType::Float64:
     {
-        auto * array = static_cast<SimpleArrayFloat64 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayFloat64 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayFloat64(*array));
         break;
     }
@@ -301,6 +305,11 @@ SimpleArrayPlex::SimpleArrayPlex(SimpleArrayPlex && other)
 {
     m_data_type = other.m_data_type;
 
+    if (!other.m_instance_ptr)
+    {
+        return; // other does not have instance
+    }
+
     // take onwership
     m_has_instance_ownership = true;
     other.m_has_instance_ownership = false;
@@ -310,74 +319,80 @@ SimpleArrayPlex::SimpleArrayPlex(SimpleArrayPlex && other)
 
 SimpleArrayPlex & SimpleArrayPlex::operator=(SimpleArrayPlex const & other)
 {
-    m_has_instance_ownership = true;
     m_data_type = other.m_data_type;
+
+    if (!other.m_instance_ptr)
+    {
+        return *this; // other does not have instance
+    }
+
+    m_has_instance_ownership = true;
 
     switch (other.m_data_type)
     {
     case DataType::Bool:
     {
-        auto * array = static_cast<SimpleArrayBool *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayBool *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayBool(*array));
         break;
     }
     case DataType::Int8:
     {
-        auto * array = static_cast<SimpleArrayInt8 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayInt8 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt8(*array));
         break;
     }
     case DataType::Int16:
     {
-        auto * array = static_cast<SimpleArrayInt16 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayInt16 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt16(*array));
         break;
     }
     case DataType::Int32:
     {
-        auto * array = static_cast<SimpleArrayInt32 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayInt32 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt32(*array));
         break;
     }
     case DataType::Int64:
     {
-        auto * array = static_cast<SimpleArrayInt64 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayInt64 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt64(*array));
         break;
     }
     case DataType::Uint8:
     {
-        auto * array = static_cast<SimpleArrayUint8 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayUint8 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint8(*array));
         break;
     }
     case DataType::Uint16:
     {
-        auto * array = static_cast<SimpleArrayUint16 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayUint16 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint16(*array));
         break;
     }
     case DataType::Uint32:
     {
-        auto * array = static_cast<SimpleArrayUint32 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayUint32 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint32(*array));
         break;
     }
     case DataType::Uint64:
     {
-        auto * array = static_cast<SimpleArrayUint64 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayUint64 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint64(*array));
         break;
     }
     case DataType::Float32:
     {
-        auto * array = static_cast<SimpleArrayFloat32 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayFloat32 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayFloat32(*array));
         break;
     }
     case DataType::Float64:
     {
-        auto * array = static_cast<SimpleArrayFloat64 *>(other.m_instance_ptr);
+        const auto * array = static_cast<SimpleArrayFloat64 *>(other.m_instance_ptr);
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayFloat64(*array));
         break;
     }
@@ -392,6 +407,11 @@ SimpleArrayPlex & SimpleArrayPlex::operator=(SimpleArrayPlex const & other)
 SimpleArrayPlex & SimpleArrayPlex::operator=(SimpleArrayPlex && other)
 {
     m_data_type = other.m_data_type;
+
+    if (!other.m_instance_ptr)
+    {
+        return *this; // other does not have instance
+    }
 
     // take onwership
     m_has_instance_ownership = true;
@@ -470,6 +490,7 @@ SimpleArrayPlex::~SimpleArrayPlex()
     }
 
     m_instance_ptr = nullptr;
+    m_has_instance_ownership = false;
 }
 
 } // namespace modmesh
