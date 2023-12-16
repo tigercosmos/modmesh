@@ -78,19 +78,6 @@ class MODMESH_PYTHON_WRAPPER_VISIBILITY WrapSimpleArrayPlex : public WrapBase<Wr
 void wrap_SimpleArrayPlex(pybind11::module & mod)
 {
     WrapSimpleArrayPlex::commit(mod, "SimpleArray", "SimpleArray");
-
-    // Register the type caster
-    // pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayBool>();
-    // pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayInt8>();
-    // pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayInt16>();
-    // pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayInt32>();
-    // pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayInt64>();
-    // pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayUint8>();
-    // pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayUint16>();
-    // pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayUint32>();
-    // pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayUint64>();
-    // pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayFloat32>();
-    // pybind11::implicitly_convertible<SimpleArrayPlex, SimpleArrayFloat64>();
 }
 
 } /* end namespace python */
