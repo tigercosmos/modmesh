@@ -689,27 +689,36 @@ enum class DataType
 
 DataType get_data_type_from_string(const std::string & data_type);
 
-template<typename T>
-bool check_data_type(DataType data_type);
+template <typename T>
+DataType get_data_type_from_type();
 
 class SimpleArrayPlex
 {
 public:
     using shape_type = detail::shape_type;
 
-    SimpleArrayPlex(const shape_type & shape, const std::string & data_type)
+    SimpleArrayPlex() = default;
+
+    explicit SimpleArrayPlex(const shape_type & shape, const std::string & data_type)
         : SimpleArrayPlex(shape, get_data_type_from_string(data_type))
     {
     }
 
-    SimpleArrayPlex(const shape_type & shape, DataType data_type);
+    explicit SimpleArrayPlex(const shape_type & shape, DataType data_type);
 
     template <typename T>
-    SimpleArrayPlex(const SimpleArray<T> & array, DataType data_type)
-        : m_data_type(data_type)
+    SimpleArrayPlex(const SimpleArray<T> & array)
+        : m_data_type(get_data_type_from_type<T>())
     {
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArray<T>(array));
     }
+
+    SimpleArrayPlex(SimpleArrayPlex const & other);
+    SimpleArrayPlex(SimpleArrayPlex && other);
+    SimpleArrayPlex & operator=(SimpleArrayPlex const & other);
+    SimpleArrayPlex & operator=(SimpleArrayPlex && other);
+
+    ~SimpleArrayPlex();
 
     DataType data_type() const
     {
@@ -721,11 +730,10 @@ public:
         return m_instance_ptr;
     }
 
-    ~SimpleArrayPlex();
-
     /// TODO: add all SimpleArray public methods
 
 private:
+    bool m_has_instance_ownership = false; /// ownership of the instance
     void * m_instance_ptr = nullptr; /// the pointer of the SimpleArray<T> instance
     DataType m_data_type = DataType::Undefined; /// the data type for array casting
 };

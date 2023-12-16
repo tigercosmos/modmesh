@@ -85,69 +85,69 @@ DataType get_data_type_from_string(const std::string & data_type)
 }
 
 template <>
-bool check_data_type<bool>(DataType data_type)
+DataType get_data_type_from_type<bool>()
 {
-    return data_type == DataType::Bool;
+    return DataType::Bool;
 }
 
 template <>
-bool check_data_type<int8_t>(DataType data_type)
+DataType get_data_type_from_type<int8_t>()
 {
-    return data_type == DataType::Int8;
+    return DataType::Int8;
 }
 
 template <>
-bool check_data_type<int16_t>(DataType data_type)
+DataType get_data_type_from_type<int16_t>()
 {
-    return data_type == DataType::Int16;
+    return DataType::Int16;
 }
 
 template <>
-bool check_data_type<int32_t>(DataType data_type)
+DataType get_data_type_from_type<int32_t>()
 {
-    return data_type == DataType::Int32;
+    return DataType::Int32;
 }
 
 template <>
-bool check_data_type<int64_t>(DataType data_type)
+DataType get_data_type_from_type<int64_t>()
 {
-    return data_type == DataType::Int64;
+    return DataType::Int64;
 }
 
 template <>
-bool check_data_type<uint8_t>(DataType data_type)
+DataType get_data_type_from_type<uint8_t>()
 {
-    return data_type == DataType::Uint8;
+    return DataType::Uint8;
 }
 
 template <>
-bool check_data_type<uint16_t>(DataType data_type)
+DataType get_data_type_from_type<uint16_t>()
 {
-    return data_type == DataType::Uint16;
+    return DataType::Uint16;
 }
 
 template <>
-bool check_data_type<uint32_t>(DataType data_type)
+DataType get_data_type_from_type<uint32_t>()
 {
-    return data_type == DataType::Uint32;
+    return DataType::Uint32;
 }
 
 template <>
-bool check_data_type<uint64_t>(DataType data_type)
+DataType get_data_type_from_type<uint64_t>()
 {
-    return data_type == DataType::Uint64;
+    return DataType::Uint64;
 }
 
 template <>
-bool check_data_type<float>(DataType data_type)
+DataType get_data_type_from_type<float>()
 {
-    return data_type == DataType::Float32;
+    return DataType::Float32;
 }
 
 template <>
-bool check_data_type<double>(DataType data_type)
+DataType get_data_type_from_type<double>()
 {
-    return data_type == DataType::Float64;
+    return DataType::Float64;
 }
 
 SimpleArrayPlex::SimpleArrayPlex(const shape_type & shape, DataType data_type)
@@ -217,9 +217,193 @@ SimpleArrayPlex::SimpleArrayPlex(const shape_type & shape, DataType data_type)
     }
 }
 
+SimpleArrayPlex::SimpleArrayPlex(SimpleArrayPlex const & other)
+{
+    m_has_instance_ownership = true;
+    m_data_type = other.m_data_type;
+
+    switch (other.m_data_type)
+    {
+    case DataType::Bool:
+    {
+        auto * array = static_cast<SimpleArrayBool *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayBool(*array));
+        break;
+    }
+    case DataType::Int8:
+    {
+        auto * array = static_cast<SimpleArrayInt8 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt8(*array));
+        break;
+    }
+    case DataType::Int16:
+    {
+        auto * array = static_cast<SimpleArrayInt16 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt16(*array));
+        break;
+    }
+    case DataType::Int32:
+    {
+        auto * array = static_cast<SimpleArrayInt32 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt32(*array));
+        break;
+    }
+    case DataType::Int64:
+    {
+        auto * array = static_cast<SimpleArrayInt64 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt64(*array));
+        break;
+    }
+    case DataType::Uint8:
+    {
+        auto * array = static_cast<SimpleArrayUint8 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint8(*array));
+        break;
+    }
+    case DataType::Uint16:
+    {
+        auto * array = static_cast<SimpleArrayUint16 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint16(*array));
+        break;
+    }
+    case DataType::Uint32:
+    {
+        auto * array = static_cast<SimpleArrayUint32 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint32(*array));
+        break;
+    }
+    case DataType::Uint64:
+    {
+        auto * array = static_cast<SimpleArrayUint64 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint64(*array));
+        break;
+    }
+    case DataType::Float32:
+    {
+        auto * array = static_cast<SimpleArrayFloat32 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayFloat32(*array));
+        break;
+    }
+    case DataType::Float64:
+    {
+        auto * array = static_cast<SimpleArrayFloat64 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayFloat64(*array));
+        break;
+    }
+    default:
+    {
+        throw std::runtime_error("Unsupported datatype");
+    }
+    }
+}
+
+SimpleArrayPlex::SimpleArrayPlex(SimpleArrayPlex && other)
+{
+    m_data_type = other.m_data_type;
+
+    // take onwership
+    m_has_instance_ownership = true;
+    other.m_has_instance_ownership = false;
+
+    m_instance_ptr = other.m_instance_ptr;
+}
+
+SimpleArrayPlex & SimpleArrayPlex::operator=(SimpleArrayPlex const & other)
+{
+    m_has_instance_ownership = true;
+    m_data_type = other.m_data_type;
+
+    switch (other.m_data_type)
+    {
+    case DataType::Bool:
+    {
+        auto * array = static_cast<SimpleArrayBool *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayBool(*array));
+        break;
+    }
+    case DataType::Int8:
+    {
+        auto * array = static_cast<SimpleArrayInt8 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt8(*array));
+        break;
+    }
+    case DataType::Int16:
+    {
+        auto * array = static_cast<SimpleArrayInt16 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt16(*array));
+        break;
+    }
+    case DataType::Int32:
+    {
+        auto * array = static_cast<SimpleArrayInt32 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt32(*array));
+        break;
+    }
+    case DataType::Int64:
+    {
+        auto * array = static_cast<SimpleArrayInt64 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayInt64(*array));
+        break;
+    }
+    case DataType::Uint8:
+    {
+        auto * array = static_cast<SimpleArrayUint8 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint8(*array));
+        break;
+    }
+    case DataType::Uint16:
+    {
+        auto * array = static_cast<SimpleArrayUint16 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint16(*array));
+        break;
+    }
+    case DataType::Uint32:
+    {
+        auto * array = static_cast<SimpleArrayUint32 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint32(*array));
+        break;
+    }
+    case DataType::Uint64:
+    {
+        auto * array = static_cast<SimpleArrayUint64 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayUint64(*array));
+        break;
+    }
+    case DataType::Float32:
+    {
+        auto * array = static_cast<SimpleArrayFloat32 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayFloat32(*array));
+        break;
+    }
+    case DataType::Float64:
+    {
+        auto * array = static_cast<SimpleArrayFloat64 *>(other.m_instance_ptr);
+        m_instance_ptr = reinterpret_cast<void *>(new SimpleArrayFloat64(*array));
+        break;
+    }
+    default:
+    {
+        throw std::runtime_error("Unsupported datatype");
+    }
+    }
+    return *this;
+}
+
+SimpleArrayPlex & SimpleArrayPlex::operator=(SimpleArrayPlex && other)
+{
+    m_data_type = other.m_data_type;
+
+    // take onwership
+    m_has_instance_ownership = true;
+    other.m_has_instance_ownership = false;
+
+    m_instance_ptr = other.m_instance_ptr;
+    return *this;
+}
+
 SimpleArrayPlex::~SimpleArrayPlex()
 {
-    if (m_instance_ptr == nullptr)
+    if (m_instance_ptr == nullptr || !m_has_instance_ownership)
     {
         return;
     }
