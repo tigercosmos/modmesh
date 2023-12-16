@@ -1,3 +1,4 @@
+#pragma once
 /*
  * Copyright (c) 2019, Yung-Yu Chen <yyc@solvcon.net>
  *
@@ -71,7 +72,7 @@ namespace detail
         static pybind11::handle cast(const modmesh::SimpleArray##DATATYPE & src, pybind11::return_value_policy, pybind11::handle)                             \
         {                                                                                                                                                     \
             /* create an arrayplex from the array */                                                                                                          \
-            modmesh::SimpleArrayPlex arrayplex(src);                                                                             \
+            modmesh::SimpleArrayPlex arrayplex(src);                                                                                                          \
                                                                                                                                                               \
             /* Return the Python object representing the converted SimpleArrayPlex */                                                                         \
             return pybind11::cast(arrayplex, pybind11::return_value_policy::move);                                                                            \
