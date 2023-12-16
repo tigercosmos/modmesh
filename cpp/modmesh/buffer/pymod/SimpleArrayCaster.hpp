@@ -46,7 +46,6 @@ namespace detail
         /* Conversion from Python object to C++ */                                                                                                            \
         bool load(pybind11::handle src, bool convert)                                                                                                         \
         {                                                                                                                                                     \
-            std::cout << "+++ " << std::endl;                                                                                                                 \
             /* Check if the source object is a valid SimpleArrayPlex  */                                                                                      \
             if (!pybind11::isinstance<modmesh::SimpleArrayPlex>(src))                                                                                         \
             {                                                                                                                                                 \
@@ -64,7 +63,7 @@ namespace detail
                                                                                                                                                               \
             /* construct the new array from the arrayplex */                                                                                                  \
             const modmesh::SimpleArray##DATATYPE * array_from_arrayplex = reinterpret_cast<const modmesh::SimpleArray##DATATYPE *>(arrayplex.instance_ptr()); \
-            value = modmesh::SimpleArray##DATATYPE(*array_from_arrayplex);                                                                                    \
+            value = std::move(modmesh::SimpleArray##DATATYPE(*array_from_arrayplex));                                                                         \
             return true;                                                                                                                                      \
         }                                                                                                                                                     \
                                                                                                                                                               \
@@ -72,7 +71,7 @@ namespace detail
         static pybind11::handle cast(const modmesh::SimpleArray##DATATYPE & src, pybind11::return_value_policy, pybind11::handle)                             \
         {                                                                                                                                                     \
             /* create an arrayplex from the array */                                                                                                          \
-            modmesh::SimpleArrayPlex arrayplex(src, modmesh::DataType::DATATYPE);                                                                             \
+            modmesh::SimpleArrayPlex arrayplex(src);                                                                             \
                                                                                                                                                               \
             /* Return the Python object representing the converted SimpleArrayPlex */                                                                         \
             return pybind11::cast(arrayplex, pybind11::return_value_policy::move);                                                                            \
