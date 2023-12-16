@@ -708,8 +708,9 @@ public:
 
     template <typename T>
     SimpleArrayPlex(const SimpleArray<T> & array)
-        : m_data_type(get_data_type_from_type<T>())
     {
+        m_data_type = get_data_type_from_type<T>();
+        m_has_instance_ownership = true;
         m_instance_ptr = reinterpret_cast<void *>(new SimpleArray<T>(array));
     }
 
