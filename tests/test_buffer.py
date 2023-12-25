@@ -599,28 +599,47 @@ class SimpleArrayBasicTC(unittest.TestCase):
                     self.assertEqual(ndarr2[i, j, k], sarr[i - G, j, k])
                     
     def test_SimpleArray_casting(self):
-        array_float64 = modmesh.SimpleArrayFloat64((2, 3, 4))
-        self.assertEqual(modmesh.testhelper.TestSimpleArrayHelper.test_cast_float64_array(array_float64), True)
+        import modmesh.testhelper
         
+        # first check the caster works if the argument is excat the same type
+        array_float64 = modmesh.SimpleArrayFloat64((2, 3, 4))
+        self.assertEqual(modmesh.testhelper.TestSimpleArrayHelper.test_load_arrayfloat64_from_arrayplex(array_float64), True)
+        
+        # init arrayplex
         arrayplex_int32 = modmesh.SimpleArray((2, 3, 4), dtype="int32")
         arrayplex_uint64 = modmesh.SimpleArray((2, 3, 4), dtype="uint64")
         arrayplex_float64 = modmesh.SimpleArray((2, 3, 4), dtype="float64")
         
+        # check the type is the same with different data types
+        self.assertTrue(type(arrayplex_int32) is type(arrayplex_uint64))
+        self.assertTrue(type(arrayplex_uint64) is type(arrayplex_float64))
+        
+        # check if arrayplex can cast to simplearray
         self.assertEqual(modmesh.testhelper.TestSimpleArrayHelper.test_cast_int32_array(arrayplex_int32), True)
     
+        # int32 and uint64 are different types
         with self.assertRaisesRegex(
             IndexError,
             r"TypeError"
         ):
             modmesh.testhelper.TestSimpleArrayHelper.test_cast_int32_array(arrayplex_uint64)
             
+        # check if arrayplex can cast to simplearray
         self.assertEqual(modmesh.testhelper.TestSimpleArrayHelper.test_cast_float64_array(arrayplex_float64), True)
     
+        # float64 and int32 are differet types
         with self.assertRaisesRegex(
             IndexError,
             r"TypeError"
         ):
             modmesh.testhelper.TestSimpleArrayHelper.test_cast_float64_array(arrayplex_int32)
+
+        # explicitly check the `cast` function of the cutomized caster works
+        
+        array_int32 = modmesh.SimpleArrayInt32((2, 3, 4))
+        array_int32_2 = modmesh.testhelper.TestSimpleArrayHelper.test_from_arrayplex_cast_to_arrayint32(arrayplex_int32)
+        self.assertTrue(type(array_int32) is type(array_int32_2))
+        
 
 
 class SimpleArrayCalculatorsTC(unittest.TestCase):
