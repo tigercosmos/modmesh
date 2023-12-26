@@ -26,10 +26,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-// clang-format off
 #include <modmesh/buffer/pymod/buffer_pymod.hpp> // Must be the first include.
-// clang-format on
-
 
 namespace modmesh
 {

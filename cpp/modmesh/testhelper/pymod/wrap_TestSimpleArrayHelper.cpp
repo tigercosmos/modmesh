@@ -54,16 +54,14 @@ protected:
     WrapTestSimpleArrayHelper(pybind11::module & mod, char const * pyname, char const * pydoc)
         : root_base_type(mod, pyname, pydoc)
     {
-        namespace py = pybind11;
-
         (*this)
             .def("test_cast_to_arrayint32", []() -> modmesh::SimpleArrayInt32
                  {  
                     SimpleArrayInt32 arr(100);
                     return arr; })
-            .def("test_load_arrayin32_from_arrayplex", [](modmesh::SimpleArrayInt32 & array) -> bool
+            .def("test_load_arrayin32_from_arrayplex", [](modmesh::SimpleArrayInt32 &) -> bool
                  { return true; })
-            .def("test_load_arrayfloat64_from_arrayplex", [](modmesh::SimpleArrayFloat64 & array) -> bool
+            .def("test_load_arrayfloat64_from_arrayplex", [](modmesh::SimpleArrayFloat64 &) -> bool
                  { return true; })
             //
             ;

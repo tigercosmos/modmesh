@@ -37,43 +37,43 @@ DataType get_data_type_from_string(const std::string & data_type)
     {
         return DataType::Bool;
     }
-    else if (data_type == "int8")
+    if (data_type == "int8")
     {
         return DataType::Int8;
     }
-    else if (data_type == "int16")
+    if (data_type == "int16")
     {
         return DataType::Int16;
     }
-    else if (data_type == "int32")
+    if (data_type == "int32")
     {
         return DataType::Int32;
     }
-    else if (data_type == "int64")
+    if (data_type == "int64")
     {
         return DataType::Uint64;
     }
-    else if (data_type == "uint8")
+    if (data_type == "uint8")
     {
         return DataType::Uint8;
     }
-    else if (data_type == "uint16")
+    if (data_type == "uint16")
     {
         return DataType::Uint16;
     }
-    else if (data_type == "uint32")
+    if (data_type == "uint32")
     {
         return DataType::Uint32;
     }
-    else if (data_type == "uint64")
+    if (data_type == "uint64")
     {
         return DataType::Uint64;
     }
-    else if (data_type == "float32")
+    if (data_type == "float32")
     {
         return DataType::Float32;
     }
-    else if (data_type == "float64")
+    if (data_type == "float64")
     {
         return DataType::Float64;
     }
@@ -319,6 +319,11 @@ SimpleArrayPlex::SimpleArrayPlex(SimpleArrayPlex && other)
 
 SimpleArrayPlex & SimpleArrayPlex::operator=(SimpleArrayPlex const & other)
 {
+    if (this == &other)
+    {
+        return *this;
+    }
+
     m_data_type = other.m_data_type;
 
     if (!other.m_instance_ptr)
