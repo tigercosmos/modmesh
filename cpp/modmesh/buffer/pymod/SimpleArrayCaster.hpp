@@ -43,8 +43,6 @@ namespace detail
         using base = type_caster_base<modmesh::SimpleArray##DATATYPE>;                                                                                        \
                                                                                                                                                               \
     public:                                                                                                                                                   \
-        PYBIND11_TYPE_CASTER(modmesh::SimpleArray##DATATYPE, const_name("SimpleArray" #DATATYPE));                                                            \
-                                                                                                                                                              \
         /* Conversion from Python object to C++ */                                                                                                            \
         bool load(pybind11::handle src, bool convert)                                                                                                         \
         {                                                                                                                                                     \
@@ -70,12 +68,12 @@ namespace detail
                                                                                                                                                               \
             /* construct the new array from the arrayplex */                                                                                                  \
             const modmesh::SimpleArray##DATATYPE * array_from_arrayplex = reinterpret_cast<const modmesh::SimpleArray##DATATYPE *>(arrayplex.instance_ptr()); \
-            value = std::move(modmesh::SimpleArray##DATATYPE(*array_from_arrayplex));                                                                         \
+            value = const_cast<modmesh::SimpleArray##DATATYPE *>(array_from_arrayplex);                                                                       \
             return true;                                                                                                                                      \
         }                                                                                                                                                     \
                                                                                                                                                               \
         /* Conversion from C++ to Python object */                                                                                                            \
-        static pybind11::handle cast(const modmesh::SimpleArray##DATATYPE & src, pybind11::return_value_policy policy, pybind11::handle parent)               \
+        static pybind11::handle cast(modmesh::SimpleArray##DATATYPE && src, pybind11::return_value_policy policy, pybind11::handle parent)                    \
         {                                                                                                                                                     \
             return base::cast(src, policy, parent);                                                                                                           \
         }                                                                                                                                                     \

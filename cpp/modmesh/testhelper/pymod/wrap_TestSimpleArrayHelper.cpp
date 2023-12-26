@@ -57,10 +57,10 @@ protected:
         namespace py = pybind11;
 
         (*this)
-            .def("test_from_arrayplex_cast_to_arrayint32", [](modmesh::SimpleArrayPlex & array) -> modmesh::SimpleArrayInt32
-                 { 
-                    pybind11::handle handle =  pybind11::cast(array);
-                    return pybind11::cast<SimpleArrayInt32>(handle); })
+            .def("test_cast_to_arrayint32", []() -> modmesh::SimpleArrayInt32
+                 {  
+                    SimpleArrayInt32 arr(100);
+                    return arr; })
             .def("test_load_arrayin32_from_arrayplex", [](modmesh::SimpleArrayInt32 & array) -> bool
                  { return true; })
             .def("test_load_arrayfloat64_from_arrayplex", [](modmesh::SimpleArrayFloat64 & array) -> bool
