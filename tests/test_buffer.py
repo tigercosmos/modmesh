@@ -130,6 +130,7 @@ class SimpleArrayBasicTC(unittest.TestCase):
         self.assertEqual(np.arange(100, 124).tolist(), list(sarr2))
 
         ndarr2 = sarr2.ndarray
+        ndarr2 = sarr2.ndarray
         for i in range(24):
             sarr2[i] = 200 + i
         self.assertEqual(np.arange(200, 224).tolist(), ndarr2.tolist())
