@@ -49,7 +49,7 @@ jobs:
           brew install gcc@13
 
           brew unlink python
-          brew uninstall python
+           brew uninstall --ignore-dependencies python
           brew install python@3.12
 
       - name: dependency by pip
