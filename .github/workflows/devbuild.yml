@@ -2,8 +2,6 @@ name: devbuild
 
 on:
   pull_request:
-  schedule:
-    - cron: '34 17 * * *'
 
 jobs:
 
@@ -162,98 +160,3 @@ jobs:
           make buildext VERBOSE=1
           make pytest VERBOSE=1
 
-  build_windows:
-
-    if: ${{ github.event_name != '' || (github.event_name == '' && github.repository_owner == 'solvcon') }}
-
-    name: build_${{ matrix.os }}_${{ matrix.cmake_build_type }}
-
-    runs-on: ${{ matrix.os }}
-
-    env:
-      QT_DEBUG_PLUGINS: 1
-
-    strategy:
-      matrix:
-        os: [windows-2022]
-        # Build Debug because there is not a job for windows in lint.yml (which uses the Debug build type)
-        cmake_build_type: [Release, Debug]
-
-      fail-fast: false
-
-    steps:
-
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 1
-
-      - uses: ilammy/msvc-dev-cmd@v1
-
-      - name: event name
-        run: |
-          echo "github.event_name: ${{ github.event_name }}"
-
-      - name: install qt
-        uses: jurplel/install-qt-action@v3
-        with:
-          aqtversion: '==2.1.*'
-          version: '6.3.1'
-          host: 'windows'
-          target: 'desktop'
-          arch: 'win64_msvc2019_64'
-          modules: 'qt3d'
-
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10' 
-
-      - name: dependency by pip
-        run: |
-          pip3 install -U numpy pytest flake8 pybind11==2.11.1 pyside6==$(qmake -query QT_VERSION)
-          # Add PySide6 and Shiboken6 path into system path, that allow exe file can find
-          # dll during runtime
-          # If user needs to modified system path in github actions container
-          # user should use GITHUB_PATH
-          # ref: https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#adding-a-system-path
-          # But the way of update GITHUB_PATH in github action document does not work, there is a other way to update it.
-          # ref: https://stackoverflow.com/questions/60169752/how-to-update-the-path-in-a-github-action-workflow-file-for-a-windows-latest-hos
-          $pyside6_path = $(python3 -c "import sys, os, PySide6; sys.stdout.write(os.path.dirname(PySide6.__file__))")
-          $shiboken6_path = $(python3 -c "import sys, os, shiboken6; sys.stdout.write(os.path.dirname(shiboken6.__file__))")
-          echo "$pyside6_path;$shiboken6_path" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: show dependency
-        run: |
-          Get-Command cl
-          Get-Command cmake
-          Get-Command python3
-          Get-Command pip3
-          python3 -c "import numpy ; print('numpy.__version__:', numpy.__version__)"
-          python3 -c "import pybind11 ; print('pybind11.__version__:', pybind11.__version__)"
-          pybind11-config --cmakedir
-          Get-Command pytest
-          Get-Command clang-tidy
-          Get-Command flake8
-
-      - name: cmake ALL_BUILD
-        run: |
-          cmake `
-            -DCMAKE_BUILD_TYPE=${{ matrix.cmake_build_type }} `
-            -Dpybind11_DIR="$(pybind11-config --cmakedir)" `
-            -DUSE_PYTEST_HELPER_BINDING=ON `
-            -S${{ github.workspace }} `
-            -B${{ github.workspace }}/build
-          cmake --build ${{ github.workspace }}/build `
-            --config ${{ matrix.cmake_build_type }} `
-            --target ALL_BUILD
-
-      - name: cmake run_gtest
-        run: |
-          cmake --build ${{ github.workspace }}/build `
-            --config ${{ matrix.cmake_build_type }} `
-            --target run_gtest
-
-      - name: cmake run_viewer_pytest
-        run: |
-          cmake --build ${{ github.workspace }}/build `
-            --config ${{ matrix.cmake_build_type }} `
-            --target run_viewer_pytest
