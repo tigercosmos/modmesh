@@ -44,7 +44,7 @@ jobs:
           # brew uninstall --ignore-dependencies llvm
           brew install llvm@17
 
-          brew uninstall --ignore-dependencies gcc
+          # brew uninstall --ignore-dependencies gcc
           brew install gcc@13
 
           brew uninstall --ignore-dependencies python3
