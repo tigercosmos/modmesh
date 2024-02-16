@@ -42,6 +42,7 @@ jobs:
           brew install qt6
           brew install llvm@17
           brew install gcc@13
+          brew install python@3.12
 
       - name: dependency by pip
         run: |
