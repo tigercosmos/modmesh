@@ -43,13 +43,14 @@ jobs:
 
           # brew uninstall --ignore-dependencies llvm
           brew install llvm@17
-
+          export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
+          export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
           # brew uninstall --ignore-dependencies gcc
           brew install gcc@13
 
           brew unlink python
+          brew uninstall python
           brew install python@3.12
-          brew link --force --overwrite python@3.12
 
       - name: dependency by pip
         run: |
