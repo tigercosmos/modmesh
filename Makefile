@@ -116,7 +116,7 @@ install: cmake
 .PHONY: pytest
 pytest: buildext
 	env $(RUNENV) \
-		$(PYTEST) $(PYTEST_OPTS) tests/
+		/opt/homebrew/bin/pytest -s -v tests/
 
 .PHONY: viewer
 viewer: cmake
