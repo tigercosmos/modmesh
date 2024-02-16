@@ -41,7 +41,7 @@ jobs:
           # export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
           brew install qt6
 
-          brew uninstall --ignore-dependencies llvm
+          # brew uninstall --ignore-dependencies llvm
           brew install llvm@17
 
           brew uninstall --ignore-dependencies gcc
