@@ -49,8 +49,8 @@ jobs:
           brew install gcc@13
 
           brew unlink python
-           brew uninstall --ignore-dependencies python
-          brew install python@3.12
+          brew uninstall --ignore-dependencies python
+          brew link --overwrite python@3.12
 
       - name: dependency by pip
         run: |
