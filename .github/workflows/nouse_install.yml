@@ -71,7 +71,7 @@ jobs:
     - name: setup.py install build_ext
       run: |
         sudo python3 setup.py install build_ext \
-          --cmake-args="${JOB_CMAKE_ARGS} -DPYTHON_EXECUTABLE=$(which python3)" \
+          --cmake-args="${JOB_CMAKE_ARGS} -DPYTHON_EXECUTABLE=$(which python3) -DUSE_PYTEST_HELPER_BINDING=ON" \
           --make-args="VERBOSE=1"
 
     - name: pytest
@@ -83,7 +83,11 @@ jobs:
         python3 -c 'import os; print(os.getcwd())'
         python3 -c "import modmesh; print(modmesh.__file__)"
         python3 -c "import _modmesh; print(_modmesh.__file__)"
-        pytest --rootdir=/tmp -v
+        # The following command is the original commend, and it will fail on pytest == 8.0.0 .
+        # pytest --rootdir=/tmp -v
+        # Here is the issue and temporary solution: https://github.com/pytest-dev/pytest/issues/11781  
+        # The alternative command to solve the issue is ```pytest --rootdir=. -v```.
+        pytest --rootdir=. -v
         cd ..
 
   nouse_install_macos:
@@ -99,7 +103,6 @@ jobs:
 
     strategy:
       matrix:
-        # https://github.com/actions/runner-images/blob/main/images/macos/macos-11-Readme.md
         # https://github.com/actions/runner-images/blob/main/images/macos/macos-13-Readme.md
         os: [macos-13]
 
@@ -154,7 +157,7 @@ jobs:
           # Using pip install instead of legacy install
           # ref: https://stackoverflow.com/questions/52375693/troubleshooting-pkg-resources-distributionnotfound-error
           python3 -m pip install -v . --no-use-pep517 --global-option=build_ext \
-            --global-option="--cmake-args=${JOB_CMAKE_ARGS} -DPYTHON_EXECUTABLE=$(which python3)" \
+            --global-option="--cmake-args=${JOB_CMAKE_ARGS} -DPYTHON_EXECUTABLE=$(which python3) -DUSE_PYTEST_HELPER_BINDING=ON" \
             --global-option="--make-args="VERBOSE=1""
 
       - name: pytest
@@ -166,5 +169,9 @@ jobs:
           python3 -c 'import os; print(os.getcwd())'
           python3 -c "import modmesh; print(modmesh.__file__)"
           python3 -c "import _modmesh; print(_modmesh.__file__)"
-          pytest --rootdir=/tmp -v
+          # The following command is the original commend, and it will fail on pytest == 8.0.0 .
+          # pytest --rootdir=/tmp -v
+          # Here is the issue and temporary solution: https://github.com/pytest-dev/pytest/issues/11781  
+          # The alternative command to solve the issue is ```pytest --rootdir=. -v``` .
+          pytest --rootdir=. -v
           cd ..
