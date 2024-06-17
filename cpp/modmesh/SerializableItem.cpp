@@ -116,27 +116,26 @@ JsonMap parse_json(const std::string & json)
         case JsonState::ObjectKey:
             if (c == '"')
             {
-                // get the key string directly
-                bool close = false;
+                key.clear();
+                bool close = false; // get the key string directly
+
+                index += 1;
                 while (index < json.size())
                 {
-                    if (json[++index] != '"')
-                    {
-                        key.push_back(json[index]);
-                    }
-                    else
+                    if (json[index] == '"')
                     {
                         close = true;
                         break;
                     }
+                    key.push_back(json[index]);
+                    index += 1;
                 }
                 if (!close)
                 {
                     throw std::runtime_error("Invalid JSON format: missing closing quote for key.");
                 }
 
-                key = trim_string(value_expression);
-
+                key = trim_string(key);
                 state = JsonState::Column;
             }
             else
