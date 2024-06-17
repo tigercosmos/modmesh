@@ -226,12 +226,12 @@ JsonMap parse_json(const std::string & json)
                 {
                     value_expression.push_back(json[index]);
 
-                    index += 1;
-                    char c_next = json[index];
+                    char c_next = json[index + 1];
                     if (c_next == ',' || c_next == '}')
                     {
                         break;
                     }
+                    index += 1;
                 }
 
                 JsonType type = JsonType::Unknown;
