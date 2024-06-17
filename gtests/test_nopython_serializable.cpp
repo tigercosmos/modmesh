@@ -128,4 +128,15 @@ TEST(Json, serialization_with_object)
                          "\"pets\":[{\"name\":\"Fluffy\",\"age\":3,\"is_dog\":true,\"is_cat\":false},{\"name\":\"Whiskers\",\"age\":8,\"is_dog\":false,\"is_cat\":true}]}";
 }
 
+TEST(json, deserialize_simple)
+{
+    std::string json = "{\"name\":\"Fluffy\",\"age\":3,\"is_dog\":true,\"is_cat\":false}";
+    detail::Pet pet;
+    pet.from_json(json);
+    EXPECT_EQ(pet.name, "Fluffy");
+    EXPECT_EQ(pet.age, 3);
+    EXPECT_EQ(pet.is_dog, true);
+    EXPECT_EQ(pet.is_cat, false);
+}
+
 } // namespace modmesh
