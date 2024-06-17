@@ -28,10 +28,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <iomanip>
 #include <sstream>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
-#include <iomanip>
+#include <vector>
 
 namespace modmesh
 {
@@ -48,11 +50,20 @@ public:
 namespace detail
 {
 
-// clang-format off
-template <typename T> struct is_array_like : std::false_type {};
-template <typename T> struct is_array_like<std::vector<T>> : std::true_type{};
-template <typename T> constexpr bool is_array_like_v = is_array_like<T>::value; // TODO: Add more array-like types, e.g., std::array, std::valarray, std::deque.
-// clang-format on
+// Helper trait to check if a type is a specialization of a given template
+template <template <typename...> class Template, typename T>
+struct is_specialization_of : std::false_type
+{
+};
+
+template <template <typename...> class Template, typename... Args>
+struct is_specialization_of<Template, Template<Args...>> : std::true_type
+{
+};
+
+// Convenience variable template
+template <template <typename...> class Template, typename T>
+inline constexpr bool is_specialization_of_v = is_specialization_of<Template, T>::value;
 
 inline bool is_alpha(char c)
 {
@@ -127,31 +138,31 @@ std::string to_json_string(const T & value)
     {
         return value.to_json(); /* recursive here */
     }
+    else if constexpr (std::is_convertible_v<T, std::string>)
+    {
+        return "\"" + escape_string(value) + "\"";
+    }
+    else if constexpr (std::is_same_v<T, bool>)
+    {
+        return value ? "true" : "false";
+    }
+    else if constexpr (is_specialization_of<std::vector, T>::value)
+    {
+        std::ostringstream oss;
+        oss << "[";
+        const char * separator = "";
+        for (const auto & item : value)
+        {
+            oss << separator << to_json_string(item); /* recursive here */
+            separator = ",";
+        }
+        oss << "]";
+        return oss.str();
+    }
     else
     {
         return std::to_string(value);
     }
-}
-
-template <typename T, typename = typename std::enable_if<std::is_convertible_v<T, std::string>>::type>
-std::string to_json_string(const std::string & value)
-{
-    return "\"" + detail::escape_string(std::string_view(value)) + "\"";
-}
-
-template <typename T, typename = typename std::enable_if<is_array_like_v<T>, void>::type>
-std::string to_json_string(const T & vec)
-{
-    std::ostringstream oss;
-    oss << "[";
-    const char * separator = "";
-    for (const auto & item : vec)
-    {
-        oss << separator << to_json_string(item); /* recursive here */
-        separator = ",";
-    }
-    oss << "]";
-    return oss.str();
 }
 
 template <typename T>
@@ -233,15 +244,16 @@ void from_json_string(const detail::JsonNodePtr & node, std::vector<T> & value)
 }; // namespace detail
 
 /// Serialize a class with member variables.
-/// use `register("key", class.member);` to add members when using this macro
-#define DECL_MM_SERIALIZABLE(...)                                                       \
+/// Use `register_member("key", class.member);` to add members when using this macro
+/// Note that the order of members in the JSON string is based on the order of `register_member` calls.
+#define MM_DECL_SERIALIZABLE(...)                                                       \
 public:                                                                                 \
     std::string to_json() const override                                                \
     {                                                                                   \
         std::ostringstream oss;                                                         \
         oss << "{";                                                                     \
         const char * separator = "";                                                    \
-        auto register = [&](const char * name, auto && value) {                         \
+        auto register_member = [&](const char * name, auto && value) {                  \
             oss << separator << "\"" << name << "\":" << detail::to_json_string(value); \
             separator = ",";                                                            \
         };                                                                              \
@@ -253,7 +265,7 @@ public:                                                                         
     void from_json(const std::string & json) override                                   \
     {                                                                                   \
         auto json_map = detail::parse_json(json);                                       \
-        auto register = [&](const char * name, auto && value) {                         \
+        auto register_member = [&](const char * name, auto && value) {                  \
             auto it = json_map.find(name);                                              \
             if (it != json_map.end())                                                   \
             {                                                                           \
