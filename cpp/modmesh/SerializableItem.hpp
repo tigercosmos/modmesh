@@ -75,6 +75,11 @@ inline bool is_digit(char c)
     return c >= '0' && c <= '9';
 }
 
+inline bool is_whitespace(char c)
+{
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+}
+
 template <typename T>
 constexpr bool is_integer_v = std::is_same_v<T, int8_t> || std::is_same_v<T, int16_t> ||
                               std::is_same_v<T, int32_t> || std::is_same_v<T, int64_t> ||

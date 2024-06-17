@@ -96,9 +96,10 @@ JsonMap parse_json(const std::string & json)
     for (size_t index = 0; index < json.size(); index++)
     {
         char c = json[index];
-        if (c == ' ')
+
+        if (is_whitespace(c))
         {
-            continue; // ignore spaces
+            continue;
         }
 
         switch (state)
@@ -232,6 +233,8 @@ JsonMap parse_json(const std::string & json)
                     }
                     index += 1;
                 }
+
+                value_expression = trim_string(value_expression);
 
                 JsonType type = JsonType::Unknown;
                 if (value_expression == "true" || value_expression == "false")

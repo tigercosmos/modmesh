@@ -139,4 +139,15 @@ TEST(json, deserialize_simple)
     EXPECT_EQ(pet.is_cat, false);
 }
 
+TEST(json, deserialize_trim)
+{
+    std::string json = "{  \n \"name\" \t\t\t \t\n:\"Fluffy\", \t\n\"age\":3,\"is_dog\": \n\ttrue,   \"is_cat\":false\t\t}";
+    detail::Pet pet;
+    pet.from_json(json);
+    EXPECT_EQ(pet.name, "Fluffy");
+    EXPECT_EQ(pet.age, 3);
+    EXPECT_EQ(pet.is_dog, true);
+    EXPECT_EQ(pet.is_cat, false);
+}
+
 } // namespace modmesh
