@@ -116,25 +116,45 @@ enum class JsonType
     Unknown,
 }; /* end enum class JsonType */
 
+union JsonValue
+{
+    JsonMap object;
+    JsonArray array;
+    std::string expression;
+}; /* end union JsonValue */
+
+struct JsonNode;
+typedef std::unique_ptr<JsonNode> JsonNodePtr;
+typedef std::unordered_map<std::string, JsonNodePtr> JsonMap;
+typedef std::unordered_map<std::string, JsonNodePtr> JsonArray;
+
 struct JsonNode
 {
     JsonType type;
-    std::string value_expression;
+    JsonValue value;
 
-    JsonNode(JsonType type, const std::string & value_expression)
+    JsonNode(JsonType type, const std::string & expression)
         : type(type)
-        , value_expression(value_expression)
     {
+        parse();
+    }
+
+private:
+    void parse()
+    {
+        if (type == JsonType::Object)
+        {
+            value.object = parse_object();
+        }
+        else if (type == JsonType::Array)
+        {
+            value.array = parse_array();
+        }
     }
 }; /* end struct JsonNode */
 
-typedef std::unique_ptr<JsonNode> JsonNodePtr;
-typedef std::unordered_map<std::string, JsonNodePtr> JsonMap;
-
-/// Parse a JSON string into a map.
-///
-/// We only prase the first level of the JSON string, and store the value expression as a string.
-JsonMap parse_json(const std::string & json);
+/// Parse the top level of a JSON string.
+JsonNodePtr parse_json(const std::string & json);
 
 template <typename T>
 std::string to_json_string(const T & value)

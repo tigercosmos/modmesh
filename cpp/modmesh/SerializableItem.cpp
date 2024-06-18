@@ -84,7 +84,31 @@ std::string trim_string(const std::string & str)
     return (start == std::string::npos) ? "" : str.substr(start, end - start + 1);
 }
 
-JsonMap parse_json(const std::string & json)
+JsonNodePtr parse_json(const std::string & json)
+{
+    JsonNodePtr json_node;
+
+    if (json.size() == 0)
+    {
+        throw std::runtime_error("Invalid JSON format: empty JSON string.");
+    }
+
+    if (json[0] == '{')
+    {
+        json_node = std::make_unique<JsonNode>(JsonType::Object, json);
+    }
+    else if (json[0] == '[')
+    {
+        json_node = std::make_unique<JsonNode>(JsonType::Array, json);
+    }
+    else
+    {
+        throw std::runtime_error("Invalid JSON format: missing opening bracket.");
+    }
+    return json_node;
+}
+
+void parse_object(const std::string & json)
 {
     JsonMap json_map;
     JsonState state = JsonState::Start;
@@ -105,14 +129,12 @@ JsonMap parse_json(const std::string & json)
         switch (state)
         {
         case JsonState::Start:
-            if (c == '{' && index == 0)
-            {
-                state = JsonState::ObjectKey;
-            }
-            else
+            if (index > 0 || c != '{')
             {
                 throw std::runtime_error("Invalid JSON format: missing opening bracket.");
             }
+
+            state = JsonState::ObjectKey;
             break; /* end case JsonState::Start */
         case JsonState::ObjectKey:
             if (c == '"')
