@@ -116,17 +116,23 @@ enum class JsonType
     Unknown,
 }; /* end enum class JsonType */
 
+struct JsonNode;
+typedef std::unique_ptr<JsonNode> JsonNodePtr;
+typedef std::unordered_map<std::string, JsonNodePtr> JsonMap;
+typedef std::vector<JsonNodePtr> JsonArray;
+
 union JsonValue
 {
+    JsonValue() {}
+    ~JsonValue() {}
+
     JsonMap object;
     JsonArray array;
     std::string expression;
 }; /* end union JsonValue */
 
-struct JsonNode;
-typedef std::unique_ptr<JsonNode> JsonNodePtr;
-typedef std::unordered_map<std::string, JsonNodePtr> JsonMap;
-typedef std::unordered_map<std::string, JsonNodePtr> JsonArray;
+JsonMap parse_object(const std::string & json);
+JsonArray parse_array(const std::string & json);
 
 struct JsonNode
 {
@@ -136,25 +142,26 @@ struct JsonNode
     JsonNode(JsonType type, const std::string & expression)
         : type(type)
     {
-        parse();
+        parse(expression);
     }
 
 private:
-    void parse()
+    void parse(const std::string & expression)
     {
         if (type == JsonType::Object)
         {
-            value.object = parse_object();
+            value.object = parse_object(expression);
         }
         else if (type == JsonType::Array)
         {
-            value.array = parse_array();
+            value.array = parse_array(expression);
+        }
+        else
+        {
+            value.expression = expression;
         }
     }
 }; /* end struct JsonNode */
-
-/// Parse the top level of a JSON string.
-JsonNodePtr parse_json(const std::string & json);
 
 template <typename T>
 std::string to_json_string(const T & value)
@@ -204,7 +211,7 @@ void from_json_string(const detail::JsonNodePtr & node, T & value)
         {
             throw std::runtime_error("Invalid JSON format: invalid number type.");
         }
-        value = std::stoll(node->value_expression);
+        value = std::stoll(node->value.expression);
     }
     else if constexpr (detail::is_float_v<T>)
     {
@@ -212,7 +219,7 @@ void from_json_string(const detail::JsonNodePtr & node, T & value)
         {
             throw std::runtime_error("Invalid JSON format: invalid number type.");
         }
-        value = std::stod(node->value_expression);
+        value = std::stod(node->value.expression);
     }
     else if constexpr (std::is_same_v<T, std::string>)
     {
@@ -220,7 +227,7 @@ void from_json_string(const detail::JsonNodePtr & node, T & value)
         {
             throw std::runtime_error("Invalid JSON format: invalid number type.");
         }
-        value = node->value_expression.substr(1, node->value_expression.size() - 2); /* Remove quotes */
+        value = node->value.expression.substr(1, node->value.expression.size() - 2); /* Remove quotes */
     }
     else if constexpr (std::is_same_v<T, bool>)
     {
@@ -228,7 +235,7 @@ void from_json_string(const detail::JsonNodePtr & node, T & value)
         {
             throw std::runtime_error("Invalid JSON format: invalid boolean type.");
         }
-        if (node->value_expression == "false")
+        if (node->value.expression == "false")
         {
             value = false;
         }
@@ -243,11 +250,11 @@ void from_json_string(const detail::JsonNodePtr & node, T & value)
         {
             throw std::runtime_error("Invalid JSON format: invalid number type.");
         }
-        value = node->value_expression.substr(1, node->value_expression.size() - 2); /* Remove quotes */
+        value = node->value.expression.substr(1, node->value.expression.size() - 2); /* Remove quotes */
     }
     else if constexpr (std::is_base_of_v<SerializableItem, T>)
     {
-        value.from_json(node->value_expression); /* recursive here */
+        value.from_json(node->value.expression); /* recursive here */
     }
     else
     {
@@ -256,14 +263,25 @@ void from_json_string(const detail::JsonNodePtr & node, T & value)
 }
 
 template <typename T>
-void from_json_string(const detail::JsonNodePtr & node, std::vector<T> & value)
+void from_json_string(const detail::JsonNodePtr & node, std::vector<T> & vec)
 {
     if (node->type == detail::JsonType::Null)
     {
         return; /* TODO: properly handle null case */
     }
 
-    // TODO
+    if (node->type != detail::JsonType::Array)
+    {
+        throw std::runtime_error("Invalid JSON format: invalid array type.");
+    }
+
+    vec.clear();
+    vec.resize(node->value.array.size());
+
+    for (size_t i = 0; i < vec.size(); ++i)
+    {
+        from_json_string(node->value.array[i], vec[i]); /* recursive here */
+    }
 }
 
 }; // namespace detail
@@ -271,33 +289,36 @@ void from_json_string(const detail::JsonNodePtr & node, std::vector<T> & value)
 /// Serialize a class with member variables.
 /// Use `register_member("key", class.member);` to add members when using this macro
 /// Note that the order of members in the JSON string is based on the order of `register_member` calls.
-#define MM_DECL_SERIALIZABLE(...)                                                       \
-public:                                                                                 \
-    std::string to_json() const override                                                \
-    {                                                                                   \
-        std::ostringstream oss;                                                         \
-        oss << "{";                                                                     \
-        const char * separator = "";                                                    \
-        auto register_member = [&](const char * name, auto && value) {                  \
-            oss << separator << "\"" << name << "\":" << detail::to_json_string(value); \
-            separator = ",";                                                            \
-        };                                                                              \
-        __VA_ARGS__                                                                     \
-        oss << "}";                                                                     \
-        return oss.str();                                                               \
-    }                                                                                   \
-                                                                                        \
-    void from_json(const std::string & json) override                                   \
-    {                                                                                   \
-        auto json_map = detail::parse_json(json);                                       \
-        auto register_member = [&](const char * name, auto && value) {                  \
-            auto it = json_map.find(name);                                              \
-            if (it != json_map.end())                                                   \
-            {                                                                           \
-                detail::from_json_string(it->second, value);                            \
-            }                                                                           \
-        };                                                                              \
-        __VA_ARGS__                                                                     \
+#define MM_DECL_SERIALIZABLE(...)                                                           \
+public:                                                                                     \
+    std::string to_json() const override                                                    \
+    {                                                                                       \
+        std::ostringstream oss;                                                             \
+        oss << "{";                                                                         \
+        const char * separator = "";                                                        \
+        auto register_member = [&](const char * name, auto && value) {                      \
+            oss << separator << "\"" << name << "\":" << detail::to_json_string(value);     \
+            separator = ",";                                                                \
+        };                                                                                  \
+        __VA_ARGS__                                                                         \
+        oss << "}";                                                                         \
+        return oss.str();                                                                   \
+    }                                                                                       \
+                                                                                            \
+    void from_json(const std::string & json) override                                       \
+    {                                                                                       \
+        auto jsonNode = std::make_unique<detail::JsonNode>(detail::JsonType::Object, json); \
+        auto register_member = [&](const char * name, auto && value) {                      \
+            if (jsonNode->type == detail::JsonType::Object)                                 \
+            {                                                                               \
+                auto it = jsonNode->value.object.find(name);                                \
+                if (it != jsonNode->value.object.end())                                     \
+                {                                                                           \
+                    detail::from_json_string(it->second, value);                            \
+                }                                                                           \
+            }                                                                               \
+        };                                                                                  \
+        __VA_ARGS__                                                                         \
     }
 } /* end namespace modmesh */
 

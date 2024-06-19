@@ -150,4 +150,53 @@ TEST(json, deserialize_trim)
     EXPECT_EQ(pet.is_cat, false);
 }
 
+TEST(json, deserialize_with_vector)
+{
+    std::string json = "{\"country\":\"USA\",\"city\":\"New York\",\"phone_numbers\":[\"123-456-7890\",\"098-765-4321\"],\"zip_codes\":[10001,10002]}";
+    detail::Address address;
+    address.from_json(json);
+    EXPECT_EQ(address.country, "USA");
+    EXPECT_EQ(address.city, "New York");
+    EXPECT_EQ(address.phone_numbers.size(), 2);
+    EXPECT_EQ(address.phone_numbers[0], "123-456-7890");
+    EXPECT_EQ(address.phone_numbers[1], "098-765-4321");
+    EXPECT_EQ(address.zip_codes.size(), 2);
+    EXPECT_EQ(address.zip_codes[0], 10001);
+    EXPECT_EQ(address.zip_codes[1], 10002);
+}
+
+TEST(json, deserialize_with_object)
+{
+    std::string json = std::string("{\"name\":\"John Doe\",\"age\":30,\"is_student\":true,") +
+                       "\"address\":{\"country\":\"USA\",\"city\":\"New York\",\"phone_numbers\":[\"123-456-7890\",\"098-765-4321\"],\"zip_codes\":[10001,10002]}," +
+                       "\"pets\":[{\"name\":\"Fluffy\",\"age\":3,\"is_dog\":true,\"is_cat\":false},{\"name\":\"Whiskers\",\"age\":8,\"is_dog\":false,\"is_cat\":true}]}";
+
+    detail::Person person;
+    person.from_json(json);
+
+    EXPECT_EQ(person.name, "John Doe");
+    EXPECT_EQ(person.age, 30);
+    EXPECT_EQ(person.is_student, true);
+
+    EXPECT_EQ(person.address.country, "USA");
+    EXPECT_EQ(person.address.city, "New York");
+    EXPECT_EQ(person.address.phone_numbers.size(), 2);
+    EXPECT_EQ(person.address.phone_numbers[0], "123-456-7890");
+    EXPECT_EQ(person.address.phone_numbers[1], "098-765-4321");
+    EXPECT_EQ(person.address.zip_codes.size(), 2);
+    EXPECT_EQ(person.address.zip_codes[0], 10001);
+    EXPECT_EQ(person.address.zip_codes[1], 10002);
+
+    EXPECT_EQ(person.pets.size(), 2);
+    EXPECT_EQ(person.pets[0].name, "Fluffy");
+    EXPECT_EQ(person.pets[0].age, 3);
+    EXPECT_EQ(person.pets[0].is_dog, true);
+    EXPECT_EQ(person.pets[0].is_cat, false);
+
+    EXPECT_EQ(person.pets[1].name, "Whiskers");
+    EXPECT_EQ(person.pets[1].age, 8);
+    EXPECT_EQ(person.pets[1].is_dog, false);
+    EXPECT_EQ(person.pets[1].is_cat, true);
+}
+
 } // namespace modmesh

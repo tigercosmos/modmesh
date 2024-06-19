@@ -25,7 +25,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
+#include <modmesh/base.hpp>
 #include <modmesh/SerializableItem.hpp>
 
 namespace modmesh
@@ -33,6 +33,11 @@ namespace modmesh
 
 namespace detail
 {
+
+void throw_serialization_error(Formatter & formatter, int line, int column)
+{
+    throw std::runtime_error(formatter << " (line: " << line << ", column: " << column << ")");
+}
 
 std::string escape_string(std::string_view str_view)
 {
@@ -84,38 +89,32 @@ std::string trim_string(const std::string & str)
     return (start == std::string::npos) ? "" : str.substr(start, end - start + 1);
 }
 
-JsonNodePtr parse_json(const std::string & json)
+#define MM_DECL_CACULATE_LINE_COLUMN(CH) \
+    if (CH == '\n')                      \
+    {                                    \
+        line += 1;                       \
+        column = 1;                      \
+    }                                    \
+    else                                 \
+    {                                    \
+        column += 1;                     \
+    }
+
+JsonArray parse_array(const std::string & json)
 {
-    JsonNodePtr json_node;
-
-    if (json.size() == 0)
-    {
-        throw std::runtime_error("Invalid JSON format: empty JSON string.");
-    }
-
-    if (json[0] == '{')
-    {
-        json_node = std::make_unique<JsonNode>(JsonType::Object, json);
-    }
-    else if (json[0] == '[')
-    {
-        json_node = std::make_unique<JsonNode>(JsonType::Array, json);
-    }
-    else
-    {
-        throw std::runtime_error("Invalid JSON format: missing opening bracket.");
-    }
-    return json_node;
-}
-
-void parse_object(const std::string & json)
-{
-    JsonMap json_map;
+    JsonArray json_array;
     JsonState state = JsonState::Start;
-    std::string key;
     std::string value_expression;
 
     int depth = 0;
+
+    int line = 1;
+    int column = 1;
+
+    if (json.empty())
+    {
+        throw_serialization_error(Formatter() << "Invalid JSON format: empty JSON string.", 0, 0);
+    }
 
     for (size_t index = 0; index < json.size(); index++)
     {
@@ -123,55 +122,20 @@ void parse_object(const std::string & json)
 
         if (is_whitespace(c))
         {
+            MM_DECL_CACULATE_LINE_COLUMN(c)
             continue;
         }
 
         switch (state)
         {
         case JsonState::Start:
-            if (index > 0 || c != '{')
+            if (index > 0 || c != '[')
             {
-                throw std::runtime_error("Invalid JSON format: missing opening bracket.");
+                throw_serialization_error(Formatter() << "Invalid JSON format: missing opening bracket.", line, column);
             }
 
-            state = JsonState::ObjectKey;
+            state = JsonState::ObjectValue;
             break; /* end case JsonState::Start */
-        case JsonState::ObjectKey:
-            if (c == '"')
-            {
-                key.clear();
-                bool close = false; // get the key string directly
-
-                index += 1;
-                while (index < json.size())
-                {
-                    if (json[index] == '"')
-                    {
-                        close = true;
-                        break;
-                    }
-                    key.push_back(json[index]);
-                    index += 1;
-                }
-                if (!close)
-                {
-                    throw std::runtime_error("Invalid JSON format: missing closing quote for key.");
-                }
-
-                key = trim_string(key);
-                state = JsonState::Column;
-            }
-            else
-            {
-                throw std::runtime_error("Invalid JSON format: missing opening quote for key.");
-            }
-            break; /* end case JsonState::ObjectKey */
-        case JsonState::Column:
-            if (c == ':')
-            {
-                state = JsonState::ObjectValue;
-            }
-            break; /* end case JsonState::Column */
         case JsonState::ObjectValue:
             value_expression.clear();
 
@@ -180,6 +144,8 @@ void parse_object(const std::string & json)
                 // go to the end of the object
                 while (index < json.size())
                 {
+                    value_expression.push_back(json[index]);
+
                     if (json[index] == '{')
                     {
                         depth += 1;
@@ -194,22 +160,24 @@ void parse_object(const std::string & json)
                         break;
                     }
 
-                    value_expression.push_back(json[index]);
+                    MM_DECL_CACULATE_LINE_COLUMN(json[index])
                     index += 1;
                 }
 
                 if (depth != 0)
                 {
-                    throw std::runtime_error("Invalid JSON format: missing closing bracket.");
+                    throw_serialization_error(Formatter() << "Invalid JSON format: missing closing bracket.", line, column);
                 }
 
-                json_map.emplace(key, std::make_unique<JsonNode>(JsonType::Object, value_expression));
+                json_array.emplace_back(std::make_unique<JsonNode>(JsonType::Object, value_expression));
             }
             else if (c == '[')
             {
                 // go to the end of the array
                 while (index < json.size())
                 {
+                    value_expression.push_back(json[index]);
+
                     if (json[index] == '[')
                     {
                         depth += 1;
@@ -224,22 +192,22 @@ void parse_object(const std::string & json)
                         break;
                     }
 
-                    value_expression.push_back(json[index]);
+                    MM_DECL_CACULATE_LINE_COLUMN(json[index])
                     index += 1;
                 }
 
                 if (depth != 0)
                 {
-                    throw std::runtime_error("Invalid JSON format: missing closing bracket.");
+                    throw_serialization_error(Formatter() << "Invalid JSON format: missing closing bracket.", line, column);
                 }
 
-                json_map.emplace(key, std::make_unique<JsonNode>(JsonType::Array, value_expression));
+                json_array.emplace_back(std::make_unique<JsonNode>(JsonType::Array, value_expression));
             }
             else
             {
                 if (!is_alpha(c) && !is_digit(c) && c != '"') // check if the value is a string, number, boolean, or null
                 {
-                    throw std::runtime_error("Invalid JSON format: invalid value expression.");
+                    throw_serialization_error(Formatter() << "Invalid JSON format: invalid value expression: " << value_expression, line, column);
                 }
 
                 // we assume the value is a string, number, boolean, or null, and the expression is correct
@@ -249,10 +217,12 @@ void parse_object(const std::string & json)
                     value_expression.push_back(json[index]);
 
                     char c_next = json[index + 1];
-                    if (c_next == ',' || c_next == '}')
+                    if (c_next == ',' || c_next == ']')
                     {
                         break;
                     }
+
+                    MM_DECL_CACULATE_LINE_COLUMN(json[index])
                     index += 1;
                 }
 
@@ -288,7 +258,245 @@ void parse_object(const std::string & json)
                     }
                     else
                     {
-                        throw std::runtime_error("Invalid JSON format: invalid value expression.");
+                        throw_serialization_error(Formatter() << "Invalid JSON format: invalid value expression: " << value_expression, line, column);
+                    }
+                }
+
+                json_array.emplace_back(std::make_unique<JsonNode>(type, value_expression));
+            }
+
+            state = JsonState::Comma;
+
+            break; /* end case JsonState::ObjectValue */
+        case JsonState::Comma:
+            if (c == ',')
+            {
+                state = JsonState::ObjectValue;
+            }
+            else if (c == ']')
+            {
+                state = JsonState::End;
+            }
+            break; /* end case JsonState::Comma */
+        case JsonState::End:
+            if (index != json.size() - 1)
+            {
+                throw_serialization_error(Formatter() << "Invalid JSON format: extra characters after closing bracket.", line, column);
+            }
+            break; /* end case JsonState::End */
+        case JsonState::ObjectKey:
+            throw_serialization_error(Formatter() << "Invalid JSON format: unexpected key in array.", line, column);
+            break; /* end case JsonState::ObjectKey */
+        case JsonState::Column:
+            throw_serialization_error(Formatter() << "Invalid JSON format: unexpected column in array.", line, column);
+            break; /* end case JsonState::Column */
+        }
+    }
+
+    if (state != JsonState::End)
+    {
+        throw_serialization_error(Formatter() << "Invalid JSON format: missing closing bracket.", line, column);
+    }
+
+    return json_array;
+}
+
+JsonMap parse_object(const std::string & json)
+{
+    JsonMap json_map;
+    JsonState state = JsonState::Start;
+    std::string key;
+    std::string value_expression;
+
+    int depth = 0;
+    int line = 1;
+    int column = 1;
+
+    if (json.empty())
+    {
+        throw_serialization_error(Formatter() << "Invalid JSON format: empty JSON string.", 0, 0);
+    }
+
+    for (size_t index = 0; index < json.size(); index++)
+    {
+        char c = json[index];
+
+        if (is_whitespace(c))
+        {
+            MM_DECL_CACULATE_LINE_COLUMN(c)
+            continue;
+        }
+
+        switch (state)
+        {
+        case JsonState::Start:
+            if (index > 0 || c != '{')
+            {
+                throw std::runtime_error("Invalid JSON format: missing opening bracket.");
+            }
+
+            state = JsonState::ObjectKey;
+            break; /* end case JsonState::Start */
+        case JsonState::ObjectKey:
+            if (c == '"')
+            {
+                key.clear();
+                bool close = false; // get the key string directly
+
+                index += 1;
+                while (index < json.size())
+                {
+                    if (json[index] == '"')
+                    {
+                        close = true;
+                        break;
+                    }
+                    key.push_back(json[index]);
+                    MM_DECL_CACULATE_LINE_COLUMN(json[index])
+                    index += 1;
+                }
+                if (!close)
+                {
+                    throw std::runtime_error("Invalid JSON format: missing closing quote for key.");
+                }
+
+                key = trim_string(key);
+                state = JsonState::Column;
+            }
+            else
+            {
+                throw std::runtime_error("Invalid JSON format: missing opening quote for key.");
+            }
+            break; /* end case JsonState::ObjectKey */
+        case JsonState::Column:
+            if (c == ':')
+            {
+                state = JsonState::ObjectValue;
+            }
+            break; /* end case JsonState::Column */
+        case JsonState::ObjectValue:
+            value_expression.clear();
+
+            if (c == '{')
+            {
+                // go to the end of the object
+                while (index < json.size())
+                {
+                    value_expression.push_back(json[index]);
+
+                    if (json[index] == '{')
+                    {
+                        depth += 1;
+                    }
+                    else if (json[index] == '}')
+                    {
+                        depth -= 1;
+                    }
+
+                    if (depth == 0)
+                    {
+                        break;
+                    }
+
+                    MM_DECL_CACULATE_LINE_COLUMN(json[index])
+                    index += 1;
+                }
+
+                if (depth != 0)
+                {
+                    throw_serialization_error(Formatter() << "Invalid JSON format: missing closing bracket.", line, column);
+                }
+
+                json_map.emplace(key, std::make_unique<JsonNode>(JsonType::Object, value_expression));
+            }
+            else if (c == '[')
+            {
+                // go to the end of the array
+                while (index < json.size())
+                {
+                    value_expression.push_back(json[index]);
+
+                    if (json[index] == '[')
+                    {
+                        depth += 1;
+                    }
+                    else if (json[index] == ']')
+                    {
+                        depth -= 1;
+                    }
+
+                    if (depth == 0)
+                    {
+                        break;
+                    }
+
+                    MM_DECL_CACULATE_LINE_COLUMN(json[index])
+                    index += 1;
+                }
+
+                if (depth != 0)
+                {
+                    throw_serialization_error(Formatter() << "Invalid JSON format: missing closing bracket.", line, column);
+                }
+
+                json_map.emplace(key, std::make_unique<JsonNode>(JsonType::Array, value_expression));
+            }
+            else
+            {
+                if (!is_alpha(c) && !is_digit(c) && c != '"') // check if the value is a string, number, boolean, or null
+                {
+                    throw_serialization_error(Formatter() << "Invalid JSON format: invalid value expression: " << value_expression, line, column);
+                }
+
+                // we assume the value is a string, number, boolean, or null, and the expression is correct
+                // if the expression is not correct, the exception will be thrown when parsing the value later
+                while (index < json.size() - 1)
+                {
+                    value_expression.push_back(json[index]);
+
+                    char c_next = json[index + 1];
+                    if (c_next == ',' || c_next == '}')
+                    {
+                        break;
+                    }
+
+                    MM_DECL_CACULATE_LINE_COLUMN(json[index])
+                    index += 1;
+                }
+
+                value_expression = trim_string(value_expression);
+
+                JsonType type = JsonType::Unknown;
+                if (value_expression == "true" || value_expression == "false")
+                {
+                    type = JsonType::Boolean;
+                }
+                else if (value_expression == "null")
+                {
+                    type = JsonType::Null;
+                }
+                else if (value_expression[0] == '"' && value_expression[value_expression.size() - 1] == '"')
+                {
+                    type = JsonType::String;
+                }
+                else
+                {
+                    bool is_number = true;
+                    for (char c : value_expression)
+                    {
+                        if (!is_digit(c) && c != '.' && c != 'e' && c != 'E' && c != '+' && c != '-')
+                        {
+                            is_number = false;
+                            break;
+                        }
+                    }
+                    if (is_number)
+                    {
+                        type = JsonType::Number;
+                    }
+                    else
+                    {
+                        throw_serialization_error(Formatter() << "Invalid JSON format: invalid value expression: " << value_expression, line, column);
                     }
                 }
 
@@ -319,11 +527,13 @@ void parse_object(const std::string & json)
 
     if (state != JsonState::End)
     {
-        throw std::runtime_error("Invalid JSON format: missing closing bracket.");
+        throw_serialization_error(Formatter() << "Invalid JSON format: missing closing bracket.", line, column);
     }
 
     return json_map;
 }
+
+#undef MM_DECL_CACULATE_LINE_COLUMN
 
 } /* end namespace detail */
 
