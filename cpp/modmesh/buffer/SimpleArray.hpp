@@ -32,6 +32,7 @@
 
 #include <limits>
 #include <stdexcept>
+#include <complex>
 
 #if defined(_MSC_VER)
 #include <BaseTsd.h>
@@ -671,6 +672,8 @@ using SimpleArrayUint32 = SimpleArray<uint32_t>;
 using SimpleArrayUint64 = SimpleArray<uint64_t>;
 using SimpleArrayFloat32 = SimpleArray<float>;
 using SimpleArrayFloat64 = SimpleArray<double>;
+using SimpleArrayFloat64 = SimpleArray<std::complex<float>>;
+using SimpleArrayFloat128 = SimpleArray<std::complex<double>>;
 
 class DataType
 {
@@ -689,6 +692,8 @@ public:
         Uint64,
         Float32,
         Float64,
+        Complex64,
+        Complex128,
     }; /* end enum enum_type */
 
     DataType() = default;

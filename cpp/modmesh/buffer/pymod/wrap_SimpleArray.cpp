@@ -243,6 +243,8 @@ void wrap_SimpleArray(pybind11::module & mod)
     WrapSimpleArray<uint64_t>::commit(mod, "SimpleArrayUint64", "SimpleArrayUint64");
     WrapSimpleArray<float>::commit(mod, "SimpleArrayFloat32", "SimpleArrayFloat32");
     WrapSimpleArray<double>::commit(mod, "SimpleArrayFloat64", "SimpleArrayFloat64");
+    WrapSimpleArray<std::complex<float>>::commit(mod, "SimpleArrayComplex64", "SimpleArrayComplex64");
+    WrapSimpleArray<std::complex<double>>::commit(mod, "SimpleArrayComplex128", "SimpleArrayComplex128");
 
     WrapSimpleCollector<bool>::commit(mod, "SimpleCollectorBool", "SimpleCollectorBool");
     WrapSimpleCollector<int8_t>::commit(mod, "SimpleCollectorInt8", "SimpleCollectorInt8");
@@ -253,8 +255,8 @@ void wrap_SimpleArray(pybind11::module & mod)
     WrapSimpleCollector<uint16_t>::commit(mod, "SimpleCollectorUint16", "SimpleCollectorUint16");
     WrapSimpleCollector<uint32_t>::commit(mod, "SimpleCollectorUint32", "SimpleCollectorUint32");
     WrapSimpleCollector<uint64_t>::commit(mod, "SimpleCollectorUint64", "SimpleCollectorUint64");
-    WrapSimpleCollector<float>::commit(mod, "SimpleCollectorFloat32", "SimpleCollectorFloat32");
-    WrapSimpleCollector<double>::commit(mod, "SimpleCollectorFloat64", "SimpleCollectorFloat64");
+    WrapSimpleCollector<std::complex<float>>::commit(mod, " WrapSimpleCollector64", " WrapSimpleCollector64");
+    WrapSimpleCollector<std::complex<double>>::commit(mod, " WrapSimpleCollector128", " WrapSimpleCollector128");
 }
 
 } /* end namespace python */
