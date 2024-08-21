@@ -103,10 +103,12 @@ jobs:
         setup-python: 'false'
         cache: true
 
-    - name: dependency by pip
+    - name: prepare python environment
       run: |
-        sudo pip3 install setuptools
-        sudo pip3 install numpy pytest flake8 jsonschema pyside6==$(qmake6 -query QT_VERSION)
+        python3 -m venv ./venv
+        . ./venv/bin/activate
+        python3 -m pip install setuptools
+        python3 -m pip install numpy pytest flake8 jsonschema pyside6==$(qmake6 -query QT_VERSION)
 
     - name: dependency (manual)
       run: sudo ${GITHUB_WORKSPACE}/contrib/dependency/install.sh pybind11
@@ -114,6 +116,7 @@ jobs:
     - name: show dependency
       # Copy the commands from contrib/dependency/showdep.sh
       run: |
+        . ./venv/bin/activate
         echo "gcc path: $(which gcc)"
         echo "gcc version: $(gcc --version)"
         echo "cmake path: $(which cmake)"
@@ -140,6 +143,7 @@ jobs:
 
     - name: make viewer
       run: |
+        . ./venv/bin/activate
         make viewer \
           ${JOB_MAKE_ARGS} \
           CMAKE_BUILD_TYPE=${{ matrix.cmake_build_type }} \
@@ -147,6 +151,7 @@ jobs:
 
     - name: make run_viewer_pytest
       run: |
+        . ./venv/bin/activate
         export LD_LIBRARY_PATH=$(python3 -c "import sys, os, shiboken6; sys.stdout.write(os.path.dirname(shiboken6.__file__))")
         make run_viewer_pytest \
           ${JOB_MAKE_ARGS} \
@@ -155,6 +160,7 @@ jobs:
 
     - name: make flake8
       run: |
+        . ./venv/bin/activate
         make flake8 \
           ${JOB_MAKE_ARGS} \
           CMAKE_BUILD_TYPE=${{ matrix.cmake_build_type }} \
@@ -222,20 +228,13 @@ jobs:
           setup-python: 'false'
           cache: true
 
-      - name: dependency by pip
+      - name: prepare python environment
         run: |
           echo "which python3: $(which python3)"
-          ls -al $(which python3)
-          if [ "${{ matrix.os }}" == "macos-13" ] || [ "${{ matrix.os }}" == "macos-14" ] ; then
-            # suppress the warning of pip because brew forces PEP668 since python3.12
-            python3 -m pip -v install --upgrade setuptools --break-system-packages
-            python3 -m pip -v install --upgrade pip --break-system-packages
-            python3 -m pip -v install --upgrade numpy pytest flake8 jsonschema pyside6==$(qmake -query QT_VERSION) --break-system-packages
-          else
-            python3 -m pip -v install --upgrade setuptools
-            python3 -m pip -v install --upgrade pip
-            python3 -m pip -v install --upgrade numpy pytest flake8 jsonschema pyside6==$(qmake -query QT_VERSION)
-          fi
+          python3 -m venv ./venv
+          . ./venv/bin/activate
+          python3 -m pip install setuptools
+          python3 -m pip install numpy pytest flake8 jsonschema pyside6==$(qmake -query QT_VERSION)
   
       - name: dependency (manual)
         run: sudo NO_INSTALL_PREFIX=1 ${GITHUB_WORKSPACE}/contrib/dependency/install.sh pybind11
@@ -243,6 +242,7 @@ jobs:
       - name: show dependency
         # Copy the commands from contrib/dependency/showdep.sh
         run: |
+          . ./venv/bin/activate
           echo "gcc path: $(which gcc)"
           echo "gcc version: $(gcc --version)"
           echo "cmake path: $(which cmake)"
@@ -269,6 +269,7 @@ jobs:
 
       - name: make viewer USE_PYTEST_HELPER_BINDING=OFF
         run: |
+          . ./venv/bin/activate
           make viewer \
             ${JOB_MAKE_ARGS} \
             CMAKE_BUILD_TYPE=${{ matrix.cmake_build_type }} \
@@ -276,6 +277,7 @@ jobs:
 
       - name: make viewer USE_PYTEST_HELPER_BINDING=ON
         run: |
+          . ./venv/bin/activate
           rm -f build/*/Makefile
           make viewer \
             ${JOB_MAKE_ARGS} \
@@ -284,6 +286,7 @@ jobs:
 
       - name: make run_viewer_pytest
         run: |
+          . ./venv/bin/activate
           # PySide6 installed by pip will bundle with a prebuilt Qt,
           # this will cause duplicated symbol.
           # Solve this issue by removed PySide6 prebuilt Qt library
@@ -295,6 +298,7 @@ jobs:
 
       - name: make flake8
         run: |
+          . ./venv/bin/activate
           make flake8 \
             ${JOB_MAKE_ARGS} \
             CMAKE_BUILD_TYPE=${{ matrix.cmake_build_type }} \
