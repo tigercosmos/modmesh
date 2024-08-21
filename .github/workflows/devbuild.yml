@@ -323,7 +323,6 @@ jobs:
           python3 -m pip install pyside6==$(qmake -query QT_VERSION)
           echo PATH=$PATH >> $GITHUB_ENV
 
-
       - name: dependency by manual script
         run: |
           sudo NO_INSTALL_PREFIX=1 ${GITHUB_WORKSPACE}/contrib/dependency/install.sh pybind11
@@ -427,6 +426,7 @@ jobs:
 
       - name: make run_viewer_pytest
         run: |
+          export LD_LIBRARY_PATH=$(python3 -c "import sys, os, numpy; sys.stdout.write(os.path.dirname(numpy.__file__))")
           make run_viewer_pytest VERBOSE=1
 
       # FIXME: turn off until all issues resolved
