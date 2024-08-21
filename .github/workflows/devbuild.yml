@@ -18,7 +18,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-22.04, ubuntu-24.04]
         cmake_build_type: [Release]
 
       fail-fast: false
@@ -95,7 +95,7 @@ jobs:
     strategy:
         matrix:
           # ubuntu-20.04 does not have built-in qt6
-          os: [ubuntu-22.04]
+          os: [ubuntu-22.04, ubuntu-24.04]
           cmake_build_type: [Release]
 
         fail-fast: false
