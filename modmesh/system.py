@@ -65,7 +65,7 @@ def _parse_command_line(argv):
     parser = ModmeshArgumentParser(description="Pilot")
     parser.add_argument('--mode', dest='mode', action='store',
                         default='pilot',
-                        choices=['pilot', 'python', 'pytest'],
+                        choices=['pilot', 'python', 'pytest', 'ipython'],
                         help='mode selection (default = %(default)s)')
     args = parser.parse_args(argv[1:])
     if parser.exited:
@@ -82,6 +82,21 @@ def _run_pilot(argv=None):
     # PySide6 should not be imported at module level.
     from . import pilot
     return pilot.launch()
+
+
+def _run_ipython():
+    """Run IPython as the interactive shell with modmesh pre-loaded."""
+    try:
+        from IPython import start_ipython
+    except ImportError:
+        sys.stderr.write(
+            'IPython is not installed. '
+            'Install it with: pip install ipython\n'
+        )
+        return 1
+    # IPython will pick up builtins.mm and builtins.modmesh that were
+    # already set up by setup_process().
+    return start_ipython(argv=[])
 
 
 def _run_pytest():
@@ -109,6 +124,8 @@ def enter_main(argv):
         ret = _run_pilot(argv)
     elif 'pytest' == args.mode:
         ret = _run_pytest()
+    elif 'ipython' == args.mode:
+        ret = _run_ipython()
     elif 'python' == args.mode:
         sys.stderr.write('mode "python" should not run in Python main')
         ret = 1
