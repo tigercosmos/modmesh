@@ -33,6 +33,7 @@
 #include <modmesh/universe/coord.hpp>
 #include <modmesh/universe/polygon.hpp>
 #include <modmesh/universe/World.hpp>
+#include <modmesh/universe/canvas2d.hpp>
 
 namespace modmesh
 {

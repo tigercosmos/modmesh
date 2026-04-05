@@ -90,6 +90,11 @@ WrapWorld<T> & WrapWorld<T>::wrap_management()
             py::init(
                 []()
                 { return wrapped_type::construct(); }))
+        .def("clear", &wrapped_type::clear)
+        .def(
+            "canvas",
+            &wrapped_type::canvas,
+            py::return_value_policy::reference_internal)
         //
         ;
 

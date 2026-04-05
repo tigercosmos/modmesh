@@ -1,4 +1,4 @@
-# Copyright (c) 2024, Yung-Yu Chen <yyc@solvcon.net>
+# Copyright (c) 2026, An-Chi Liu <phy.tiger@gmail.com>
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -24,33 +24,51 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-
 """
-Drawing and visualization sub-system of modmesh.
+High-level 2D canvas API with shape CRUD.
+
+All shape and canvas classes are implemented in C++ and exposed via pybind11.
+This module re-exports them for convenience from the ``modmesh.pilot``
+namespace.
+
+Architecture::
+
+    Canvas2DFp64     shape registry + add/remove
+        ^  world.canvas()
+        |
+    WorldFp64        owns Canvas2D, holds low-level geometry
+        |  widget.updateWorld(world)
+        v
+    R3DWidget        Qt3D rendering
 """
 
-# The "pilot" sub-package houses all GUI related code and should not be
-# imported to the top-level "modmesh" namespace.
+from .. import core
 
-# Import _pilot_core first for C++ code.
-from ._pilot_core import (  # noqa: F401
-    enable,
-    mgr,
-    R3DWidget,
-    RLine,
-    RPythonConsoleDockWidget,
-    RManager,
-    RCameraController,
-)
-if enable:
-    from ._gui import (  # noqa: F401
-        controller,
-        launch,
-    )
-    from . import airfoil  # noqa: F401
-    from . import _canvas  # noqa: F401
-    from . import _canvas2d  # noqa: F401
+__all__ = [
+    # Shape2D hierarchy (Fp64)
+    'Shape2DFp64',
+    'Polygon2DFp64',
+    'Rectangle2DFp64',
+    'Triangle2DFp64',
+    'Circle2DFp64',
+    'Line2DFp64',
+    'Polyline2DFp64',
+    'Ellipse2DFp64',
+    # canvas (accessed via world.canvas(), not constructed directly)
+    'Canvas2DFp64',
+]
 
-# NOTE: intentionally omit __all__ for now
+# Guard: C++ bindings may not yet be compiled into _modmesh.
+if hasattr(core, 'Shape2DFp64'):
+    Shape2DFp64 = core.Shape2DFp64
+    Polygon2DFp64 = core.Polygon2DFp64
+    Rectangle2DFp64 = core.Rectangle2DFp64
+    Triangle2DFp64 = core.Triangle2DFp64
+    Circle2DFp64 = core.Circle2DFp64
+    Line2DFp64 = core.Line2DFp64
+    Polyline2DFp64 = core.Polyline2DFp64
+    Ellipse2DFp64 = core.Ellipse2DFp64
+    Canvas2DFp64 = core.Canvas2DFp64
 
-# vim: set ff=unix fenc=utf8 et sw=4 ts=4 sts=4:
+
+# vim: set ff=unix fenc=utf8 et sw=4 ts=4 sts=4 tw=79:

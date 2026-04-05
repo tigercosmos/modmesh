@@ -52,6 +52,7 @@ void initialize_universe(pybind11::module & mod)
         wrap_shape2d(mod);
         wrap_shape3d(mod);
         wrap_World(mod);
+        wrap_canvas2d(mod);
     };
 
     OneTimeInitializer<bernstein_pymod_tag>::me()(mod, initialize_impl);

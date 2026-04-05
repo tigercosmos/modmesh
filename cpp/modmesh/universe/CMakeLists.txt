@@ -7,6 +7,7 @@ set(MODMESH_UNIVERSE_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/bernstein.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/bezier.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/coord.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/canvas2d.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/polygon.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/World.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/rtree.hpp
@@ -28,6 +29,7 @@ set(MODMESH_UNIVERSE_PYMODSOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/pymod/wrap_shape2d.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/pymod/wrap_shape3d.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/pymod/wrap_World.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/pymod/wrap_canvas2d.cpp
     CACHE FILEPATH "" FORCE)
 
 set(MODMESH_UNIVERSE_FILES

@@ -37,6 +37,10 @@
 namespace modmesh
 {
 
+// Forward declaration -- defined in canvas2d.hpp.
+template <typename T>
+class Canvas2D;
+
 /**
  * Manage all geometry entities.
  */
@@ -136,6 +140,21 @@ public:
     }
     std::shared_ptr<curve_pad_type> const & curves() { return m_curves; }
 
+    /**
+     * Remove all geometry entities (points, segments, curves) from the world.
+     */
+    void clear()
+    {
+        // TODO(2D drawing API): implement
+    }
+
+    /**
+     * Return the Canvas2D associated with this world (lazy-created).
+     *
+     * TODO: (2D drawing API): implement
+     */
+    Canvas2D<T> & canvas();
+
 private:
 
     void check_size(size_t i, size_t s, char const * msg) const
@@ -149,6 +168,7 @@ private:
     std::shared_ptr<point_pad_type> m_points;
     std::shared_ptr<segment_pad_type> m_segments;
     std::shared_ptr<curve_pad_type> m_curves;
+    std::shared_ptr<Canvas2D<T>> m_canvas; ///< Lazy-initialised by canvas().
 
 }; /* end class World */
 

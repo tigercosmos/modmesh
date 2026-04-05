@@ -46,6 +46,7 @@ void wrap_shape1d(pybind11::module & mod);
 void wrap_shape2d(pybind11::module & mod);
 void wrap_shape3d(pybind11::module & mod);
 void wrap_World(pybind11::module & mod);
+void wrap_canvas2d(pybind11::module & mod);
 
 } /* end namespace python */
 
