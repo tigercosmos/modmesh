@@ -2135,7 +2135,7 @@ private:
     }
 
     static void check_f_contiguous(shape_type const & shape,
-                                    sshape_type const & stride)
+                                   sshape_type const & stride)
     {
         if (!is_f_contiguous(shape, stride))
         {
