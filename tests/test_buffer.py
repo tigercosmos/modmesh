@@ -282,6 +282,27 @@ class SimpleArrayBasicTC(unittest.TestCase):
         self.assertEqual((12, 2), sarr.reshape((12, 2)).shape)
         self.assertEqual((2, 2, 2, 3), sarr.reshape((2, 2, 2, 3)).shape)
 
+    def test_SimpleArray_fortran_1x2(self):
+        ndarr = np.asfortranarray([[1.0, 0.1]])
+        sarr = solvcon.SimpleArrayFloat64(array=ndarr)
+        self.assertEqual(bool(ndarr.flags.c_contiguous), sarr.is_c_contiguous)
+        self.assertEqual(bool(ndarr.flags.f_contiguous), sarr.is_f_contiguous)
+        np.testing.assert_array_equal(ndarr, sarr.ndarray)
+
+    def test_SimpleArray_fortran_2x1(self):
+        ndarr = np.asfortranarray([[1.0], [0.0]])
+        sarr = solvcon.SimpleArrayFloat64(array=ndarr)
+        self.assertEqual(bool(ndarr.flags.c_contiguous), sarr.is_c_contiguous)
+        self.assertEqual(bool(ndarr.flags.f_contiguous), sarr.is_f_contiguous)
+        np.testing.assert_array_equal(ndarr, sarr.ndarray)
+
+    def test_SimpleArray_fortran_2x2(self):
+        ndarr = np.asfortranarray([[1.0, 0.1], [0.0, 1.0]])
+        sarr = solvcon.SimpleArrayFloat64(array=ndarr)
+        self.assertEqual(bool(ndarr.flags.c_contiguous), sarr.is_c_contiguous)
+        self.assertEqual(bool(ndarr.flags.f_contiguous), sarr.is_f_contiguous)
+        np.testing.assert_array_equal(ndarr, sarr.ndarray)
+
     def test_SimpleArray_from_numpy_negative_stride(self):
         ndarr = np.arange(2 * 3, dtype='float64').reshape((2, 3))
         view = ndarr[::-1, ::-1]

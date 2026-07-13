@@ -2084,16 +2084,21 @@ private:
     static bool is_c_contiguous(shape_type const & shape,
                                 sshape_type const & stride)
     {
-        if (stride[stride.size() - 1] != 1)
+        if (shape.empty())
         {
-            return false;
+            return true;
         }
-        for (size_t it = 0; it < shape.size() - 1; ++it)
+        ssize_t expected = 1;
+        for (ssize_t i = static_cast<ssize_t>(shape.size()) - 1; i >= 0; --i)
         {
-            if (stride[it] != static_cast<ssize_t>(shape[it + 1]) * stride[it + 1])
+            if (stride[i] != expected)
             {
-                return false;
+                if (static_cast<ssize_t>(shape[i]) != 1)
+                {
+                    return false;
+                }
             }
+            expected *= static_cast<ssize_t>(shape[i]);
         }
         return true;
     }
@@ -2101,16 +2106,21 @@ private:
     static bool is_f_contiguous(shape_type const & shape,
                                 sshape_type const & stride)
     {
-        if (stride[0] != 1)
+        if (shape.empty())
         {
-            return false;
+            return true;
         }
-        for (size_t it = 0; it < shape.size() - 1; ++it)
+        ssize_t expected = 1;
+        for (size_t i = 0; i < shape.size(); ++i)
         {
-            if (stride[it + 1] != static_cast<ssize_t>(shape[it]) * stride[it])
+            if (stride[i] != expected)
             {
-                return false;
+                if (static_cast<ssize_t>(shape[i]) != 1)
+                {
+                    return false;
+                }
             }
+            expected *= static_cast<ssize_t>(shape[i]);
         }
         return true;
     }
@@ -2124,8 +2134,8 @@ private:
         }
     }
 
-    void check_f_contiguous(shape_type const & shape,
-                            sshape_type const & stride) const
+    static void check_f_contiguous(shape_type const & shape,
+                                    sshape_type const & stride)
     {
         if (!is_f_contiguous(shape, stride))
         {
