@@ -26,6 +26,8 @@
 #   .\build.ps1 -Test                 then run "pytest tests\" headless
 #   .\build.ps1 -Pilot                then launch the pilot GUI
 #   .\build.ps1 -PilotTest            then run "pilot.exe --mode=pytest" headless
+#   .\build.ps1 -Sanitize             build and run the AddressSanitizer gtest
+#                                     binary (USE_SANITIZER=ON, implies -NoQt)
 #
 # Overridable variables:
 #   SCDV_VS_VERSION: vswhere -version range picking the VS whose cl/vcvars
@@ -41,6 +43,7 @@ param(
     [switch]$Test,
     [switch]$Pilot,
     [switch]$PilotTest,
+    [switch]$Sanitize,
     [switch]$Help
 )
 
@@ -57,6 +60,17 @@ if ($Help) {
         ForEach-Object { if ($_ -notmatch '^\s*$') { $_ -replace '^#\s?', '' } } |
         Select-Object -First 40
     exit 0
+}
+
+# The sanitizer build exercises the C++ gtest binary, not the pilot or the
+# Python module, and mirrors the Linux "make gtest USE_SANITIZER=ON" job. It
+# forces BUILD_QT=OFF so the run stays headless and Qt is out of the picture.
+if ($Sanitize) {
+    if ($Pilot -or $PilotTest) {
+        throw '-Sanitize builds the gtest binary and cannot be combined ' +
+            'with -Pilot or -PilotTest'
+    }
+    $NoQt = $true
 }
 
 # This script lives at the repo root; build that checkout by default.
@@ -167,12 +181,24 @@ $extra = @(
     "-DCMAKE_PREFIX_PATH=$usr"
 )
 if ($NoQt) { $extra += '-DBUILD_QT=OFF' }
+# USE_GOOGLETEST is OFF in the Windows preset; the sanitizer run needs the
+# gtest binary, which links the ASan runtime directly so ASan initializes at
+# process start (unlike loading an instrumented .pyd into a stock python.exe).
+if ($Sanitize) { $extra += '-DUSE_SANITIZER=ON', '-DUSE_GOOGLETEST=ON' }
 
 Push-Location $Repo
 try {
     Write-Host "configuring solvcon (preset $preset, BUILD_QT=$(if ($NoQt) {'OFF'} else {'ON'})) ..."
     & $cmake --preset $preset @extra
     Assert-LastExit 'cmake configure'
+
+    if ($Sanitize) {
+        Write-Host 'building and running the AddressSanitizer gtest binary ...'
+        & $cmake --build --preset $preset --target run_gtest
+        Assert-LastExit 'cmake build run_gtest'
+        Write-Host 'sanitizer gtest run passed'
+        exit 0
+    }
 
     $targets = @('_solvcon')
     if (-not $NoQt) { $targets += 'pilot' }
