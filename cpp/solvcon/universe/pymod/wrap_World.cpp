@@ -112,6 +112,14 @@ WrapWorld<T> & WrapWorld<T>::wrap_management()
             py::arg("cx"),
             py::arg("cy"))
         .def(
+            "scale_shape",
+            &wrapped_type::scale_shape,
+            py::arg("shape_id"),
+            py::arg("sx"),
+            py::arg("sy"),
+            py::arg("cx"),
+            py::arg("cy"))
+        .def(
             "shape_is_live",
             &wrapped_type::shape_is_live,
             py::arg("shape_id"))
@@ -392,6 +400,18 @@ WrapWorld<T> & WrapWorld<T>::wrap_shape()
             py::arg("x"),
             py::arg("y"),
             py::arg("height"))
+        .def(
+            "add_arc",
+            [](wrapped_type & self, value_type cx, value_type cy, value_type rx, value_type ry, value_type start_angle, value_type end_angle)
+            {
+                return self.add_arc(cx, cy, rx, ry, start_angle, end_angle);
+            },
+            py::arg("cx"),
+            py::arg("cy"),
+            py::arg("rx"),
+            py::arg("ry"),
+            py::arg("start_angle"),
+            py::arg("end_angle"))
         //
         ;
 

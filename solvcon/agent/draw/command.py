@@ -347,6 +347,27 @@ class AddText(_cmd.Command):
 
 
 @_command_set.register
+class AddArc(_cmd.Command):
+    op = "add_arc"
+    category = "create"
+    summary = ("Add an elliptical arc centered at (cx, cy), sweeping from "
+               "start_angle to end_angle (radians, +Y up).")
+    arguments = {"cx": _num("Center x."), "cy": _num("Center y."),
+                 "rx": _pos("Semi-axis along x; must be positive."),
+                 "ry": _pos("Semi-axis along y; must be positive."),
+                 "start_angle": _num("Start angle in radians."),
+                 "end_angle": _num("End angle in radians.")}
+    returns = {"shape_id": _int("Id of the new shape.")}
+
+    def apply(self, world, args, ctx):
+        if args["start_angle"] == args["end_angle"]:
+            raise _cmd.CommandError("add_arc needs a nonzero sweep")
+        return {"shape_id": world.add_arc(
+            args["cx"], args["cy"], args["rx"], args["ry"],
+            args["start_angle"], args["end_angle"])}
+
+
+@_command_set.register
 class GetShape(_cmd.Command):
     op = "get_shape"
     category = "read"
@@ -465,6 +486,33 @@ class TranslateShape(_cmd.Command):
     def apply(self, world, args, ctx):
         _require_live(world, args["shape_id"])
         world.translate_shape(args["shape_id"], args["dx"], args["dy"])
+        return {}
+
+
+@_command_set.register
+class ScaleShape(_cmd.Command):
+    op = "scale_shape"
+    category = "update"
+    summary = ("Scale the shape with the given id by (sx, sy) about a pivot; "
+               "the pivot defaults to the shape's bbox center.")
+    arguments = {"shape_id": _int("Id of the shape to scale."),
+                 "sx": _num("Scale factor along x; must be nonzero."),
+                 "sy": _num("Scale factor along y; must be nonzero."),
+                 "cx": _num("Pivot x; defaults to the shape center."),
+                 "cy": _num("Pivot y; defaults to the shape center.")}
+    optional = ("cx", "cy")
+
+    def apply(self, world, args, ctx):
+        _require_live(world, args["shape_id"])
+        sx, sy = args["sx"], args["sy"]
+        if sx == 0 or sy == 0:
+            raise _cmd.CommandError("scale factors must be nonzero")
+        cx, cy = args.get("cx"), args.get("cy")
+        if cx is None or cy is None:
+            bbox = world.shape_bbox(args["shape_id"])
+            cx = 0.5 * (bbox[0] + bbox[2]) if cx is None else cx
+            cy = 0.5 * (bbox[1] + bbox[3]) if cy is None else cy
+        world.scale_shape(args["shape_id"], sx, sy, cx, cy)
         return {}
 
 

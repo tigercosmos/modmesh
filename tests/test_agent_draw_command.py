@@ -7,6 +7,7 @@ solvcon.agent.draw, exercised end to end against a real WorldFp64 through the
 generic CommandProcessor. Only a representative slice is covered here; the
 comprehensive per-command suite lives in test_agent_draw_schema.py."""
 
+import math
 import unittest
 
 import solvcon
@@ -81,7 +82,7 @@ class DrawVocabularyGoThroughTC(unittest.TestCase):
 
 
 class DrawPrimitiveCommandsTC(unittest.TestCase):
-    """The polyline, polygon, and text commands end to end."""
+    """The polyline, polygon, text, arc, and scale commands end to end."""
 
     def setUp(self):
         self.world = solvcon.WorldFp64()
@@ -119,6 +120,39 @@ class DrawPrimitiveCommandsTC(unittest.TestCase):
              "shape_id": made.value["shape_id"]}).value["shape"]
         self.assertEqual(shape["type"], "text")
         self.assertEqual(shape["text"], "SOLVCON")
+
+    def test_arc_records_the_string_and_rejects_a_zero_sweep(self):
+        arc = self.proc.run(
+            {"op": "add_arc", "cx": 0.0, "cy": 0.0, "rx": 3.0, "ry": 3.0,
+             "start_angle": 0.0, "end_angle": math.pi})
+        self.assertTrue(arc.ok)
+        flat = self.proc.run(
+            {"op": "add_arc", "cx": 0.0, "cy": 0.0, "rx": 1.0, "ry": 1.0,
+             "start_angle": 1.0, "end_angle": 1.0})
+        self.assertFalse(flat.ok)
+        self.assertIn("sweep", flat.error)
+
+    def test_scale_defaults_pivot_to_the_shape_center(self):
+        made = self.proc.run(
+            {"op": "add_rectangle",
+             "x_min": -1.0, "y_min": -1.0, "x_max": 1.0, "y_max": 1.0})
+        shape_id = made.value["shape_id"]
+        # No pivot given: scaling about the center keeps the center fixed.
+        self.assertTrue(self.proc.run(
+            {"op": "scale_shape",
+             "shape_id": shape_id, "sx": 3.0, "sy": 3.0}).ok)
+        box = self.proc.run(
+            {"op": "get_shape", "shape_id": shape_id}).value["shape"]["bbox"]
+        self.assertEqual(box, [-3, -3, 3, 3])
+
+    def test_scale_zero_factor_fails_cleanly(self):
+        made = self.proc.run(
+            {"op": "add_square", "x_min": 0.0, "y_min": 0.0, "size": 2.0})
+        bad = self.proc.run(
+            {"op": "scale_shape",
+             "shape_id": made.value["shape_id"], "sx": 0.0, "sy": 1.0})
+        self.assertFalse(bad.ok)
+        self.assertIn("nonzero", bad.error)
 
 
 # vim: set ff=unix fenc=utf8 et sw=4 ts=4 sts=4:

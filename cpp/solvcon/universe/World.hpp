@@ -60,6 +60,7 @@ enum class ShapeType : uint8_t
     POLYLINE = 9, ///< Open chain of straight segments.
     POLYGON = 10, ///< Closed chain of straight segments.
     TEXT = 11, ///< A text label anchored in world space.
+    ARC = 12, ///< Partial ellipse/circle as cubic Beziers.
 }; /* end of enum class ShapeType */
 
 inline std::string shape_type_name(ShapeType st)
@@ -78,6 +79,7 @@ inline std::string shape_type_name(ShapeType st)
     case ShapeType::POLYLINE: return "polyline";
     case ShapeType::POLYGON: return "polygon";
     case ShapeType::TEXT: return "text";
+    case ShapeType::ARC: return "arc";
     default: return "unknown";
     }
 }
@@ -461,6 +463,15 @@ public:
     int32_t add_polygon(std::vector<std::array<T, 2>> const & vertices);
 
     /**
+     * Add an elliptical arc centered at (cx, cy) with semi-axes (rx, ry),
+     * sweeping the parametric angle from start_angle to end_angle (radians,
+     * counter-clockwise when end_angle > start_angle). Stored as cubic Beziers,
+     * one per sub-arc of at most a quarter turn. Angles must be finite and the
+     * sweep nonzero and within one full turn.
+     */
+    int32_t add_arc(T cx, T cy, T rx, T ry, T start_angle, T end_angle);
+
+    /**
      * Add a text label with its baseline-left anchor at (x, y) and the given
      * world-space height. Glyphs are drawn upright.
      */
@@ -471,6 +482,13 @@ public:
      * (dx, dy).
      */
     void translate_shape(int32_t shape_id, value_type dx, value_type dy);
+
+    /**
+     * Scale all geometry belonging to a shape by (sx, sy) about the pivot
+     * (cx, cy). A text label's anchor scales with the pivot and its height by
+     * sy. Both factors must be nonzero.
+     */
+    void scale_shape(int32_t shape_id, value_type sx, value_type sy, value_type cx, value_type cy);
 
     /**
      * Rotate all segments and curves belonging to a shape by `angle`
@@ -779,6 +797,7 @@ private:
         REMOVE,
         TRANSLATE,
         ROTATE,
+        SCALE,
     }; /* end enum class ShapeOp */
 
     /// Record of a single shape change, for undo/redo.
@@ -791,14 +810,18 @@ private:
         value_type dx = 0; ///< Net x of a TRANSLATE.
         value_type dy = 0; ///< Net y of a TRANSLATE.
         value_type angle = 0; ///< Net angle of a ROTATE, in radians.
-        value_type cx = 0; ///< Pivot x of a ROTATE.
-        value_type cy = 0; ///< Pivot y of a ROTATE.
+        value_type sx = 1; ///< Net x factor of a SCALE.
+        value_type sy = 1; ///< Net y factor of a SCALE.
+        value_type cx = 0; ///< Pivot x of a ROTATE or SCALE.
+        value_type cy = 0; ///< Pivot y of a ROTATE or SCALE.
     }; /* end struct ShapeOperationRecord */
 
     /// Translate a shape's geometry in place and reindex it.
     void apply_translate(int32_t shape_id, value_type dx, value_type dy);
     /// Rotate a shape's geometry about (cx, cy) and reindex it.
     void apply_rotate(int32_t shape_id, value_type angle, value_type cx, value_type cy);
+    /// Scale a shape's geometry about (cx, cy) and reindex it.
+    void apply_scale(int32_t shape_id, value_type sx, value_type sy, value_type cx, value_type cy);
     /// Drop a live shape from the spatial index and the live count.
     void kill_shape(int32_t shape_id);
     /// Restore a DEAD shape slot as @p type and reindex it.
@@ -996,6 +1019,56 @@ int32_t World<T>::add_polygon(std::vector<std::array<T, 2>> const & vertices)
 }
 
 template <typename T>
+int32_t World<T>::add_arc(T cx, T cy, T rx, T ry, T start_angle, T end_angle)
+{
+    if (!std::isfinite(start_angle) || !std::isfinite(end_angle))
+    {
+        throw std::invalid_argument("World: add_arc angles must be finite");
+    }
+    T const sweep = end_angle - start_angle;
+    T const quarter = T(2) * std::atan(T(1));
+    if (sweep == T(0))
+    {
+        throw std::invalid_argument("World: add_arc needs a nonzero sweep");
+    }
+    // Bound the sweep to a single turn: past a full circle a larger sweep only
+    // retraces the ellipse, and an unbounded magnitude would blow up the
+    // segment count below.
+    if (std::abs(sweep) > T(4) * quarter)
+    {
+        throw std::invalid_argument("World: add_arc sweep must be within one turn");
+    }
+    // Split the sweep into equal sub-arcs of at most a quarter turn so each
+    // cubic Bezier tracks the ellipse closely.
+    auto const n = static_cast<size_t>(std::ceil(std::abs(sweep) / quarter));
+    size_t const segments = std::max<size_t>(n, 1);
+    T const step = sweep / static_cast<T>(segments);
+    // Control-point reach along the parametric tangent for a sub-arc of `step`
+    // radians: the standard 4/3 * tan(step/4) cubic-Bezier arc factor.
+    T const k = (T(4) / T(3)) * std::tan(step / T(4));
+
+    size_t const offset = m_curves->size();
+    for (size_t i = 0; i < segments; ++i)
+    {
+        T const a0 = start_angle + step * static_cast<T>(i);
+        T const a1 = a0 + step;
+        T const c0 = std::cos(a0), s0 = std::sin(a0);
+        T const c1 = std::cos(a1), s1 = std::sin(a1);
+        // Point and parametric tangent (d/dtheta) on the ellipse at each end.
+        T const p0x = cx + rx * c0, p0y = cy + ry * s0;
+        T const p1x = cx + rx * c1, p1y = cy + ry * s1;
+        T const t0x = -rx * s0, t0y = ry * c0;
+        T const t1x = -rx * s1, t1y = ry * c1;
+        m_curves->append(
+            point_type(p0x, p0y, 0),
+            point_type(p0x + k * t0x, p0y + k * t0y, 0),
+            point_type(p1x - k * t1x, p1y - k * t1y, 0),
+            point_type(p1x, p1y, 0));
+    }
+    return register_shape(ShapeType::ARC, /*seg_off*/ 0, /*seg_cnt*/ 0, offset, segments);
+}
+
+template <typename T>
 int32_t World<T>::add_text(std::string text, T x, T y, T height)
 {
     size_t const offset = m_texts.size();
@@ -1147,6 +1220,85 @@ void World<T>::rotate_shape(int32_t shape_id, value_type angle, value_type cx, v
 }
 
 template <typename T>
+void World<T>::apply_scale(int32_t shape_id, value_type sx, value_type sy, value_type cx, value_type cy)
+{
+    ShapeRecord & rec = m_shape_registry[static_cast<size_t>(shape_id)];
+    m_rtree->remove(ShapeEntry<T>{shape_id, compute_shape_bbox(rec)});
+
+    auto scale = [&](T & x, T & y)
+    {
+        x = cx + sx * (x - cx);
+        y = cy + sy * (y - cy);
+    };
+
+    for (uint32_t i = 0; i < rec.segment_count; ++i)
+    {
+        size_t const idx = rec.segment_offset + i;
+        scale(m_segments->x0(idx), m_segments->y0(idx));
+        scale(m_segments->x1(idx), m_segments->y1(idx));
+    }
+    for (uint32_t i = 0; i < rec.curve_count; ++i)
+    {
+        size_t const idx = rec.curve_offset + i;
+        scale(m_curves->x0(idx), m_curves->y0(idx));
+        scale(m_curves->x1(idx), m_curves->y1(idx));
+        scale(m_curves->x2(idx), m_curves->y2(idx));
+        scale(m_curves->x3(idx), m_curves->y3(idx));
+    }
+    // A text label's anchor scales with the pivot and its height by sy, so the
+    // label grows with the figure while its glyphs stay upright.
+    for (uint32_t i = 0; i < rec.text_count; ++i)
+    {
+        WorldText & t = m_texts[rec.text_offset + i];
+        t.x = static_cast<double>(cx + sx * (static_cast<T>(t.x) - cx));
+        t.y = static_cast<double>(cy + sy * (static_cast<T>(t.y) - cy));
+        t.height *= std::abs(static_cast<double>(sy));
+    }
+
+    if (rec.text_count > 0)
+    {
+        // As in a rotate: an upright label's box stays axis-aligned, so a
+        // non-uniform scale must not skew the stored OBB.
+        seed_obb_from_bbox(rec);
+    }
+    else
+    {
+        // Scale the oriented bounding box about the same pivot, in `double` to
+        // match its storage.
+        auto const dsx = static_cast<double>(sx);
+        auto const dsy = static_cast<double>(sy);
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            rec.obb_x[i] = cx + dsx * (rec.obb_x[i] - cx);
+            rec.obb_y[i] = cy + dsy * (rec.obb_y[i] - cy);
+        }
+    }
+    m_rtree->insert(ShapeEntry<T>{shape_id, compute_shape_bbox(rec)});
+}
+
+template <typename T>
+void World<T>::scale_shape(int32_t shape_id, value_type sx, value_type sy, value_type cx, value_type cy)
+{
+    find_shape_or_throw(shape_id);
+    if (!std::isfinite(sx) || !std::isfinite(sy) || !std::isfinite(cx) || !std::isfinite(cy))
+    {
+        throw std::invalid_argument("World: scale factors and pivot must be finite");
+    }
+    if (sx == value_type(0) || sy == value_type(0))
+    {
+        throw std::invalid_argument("World: scale factors must be nonzero");
+    }
+    // A unit scale changes nothing; skip it like a zero translate so it does
+    // not record an empty undo step.
+    if (sx == value_type(1) && sy == value_type(1))
+    {
+        return;
+    }
+    apply_scale(shape_id, sx, sy, cx, cy);
+    record_op({.op = ShapeOp::SCALE, .shape_id = shape_id, .sx = sx, .sy = sy, .cx = cx, .cy = cy});
+}
+
+template <typename T>
 T World<T>::point_segment_distance(T px, T py, T ax, T ay, T bx, T by)
 {
     T const dx = bx - ax;
@@ -1259,7 +1411,8 @@ template <typename T>
 bool World<T>::is_noop(ShapeOperationRecord const & rec)
 {
     return (rec.op == ShapeOp::TRANSLATE && rec.dx == value_type(0) && rec.dy == value_type(0)) ||
-           (rec.op == ShapeOp::ROTATE && rec.angle == value_type(0));
+           (rec.op == ShapeOp::ROTATE && rec.angle == value_type(0)) ||
+           (rec.op == ShapeOp::SCALE && rec.sx == value_type(1) && rec.sy == value_type(1));
 }
 
 template <typename T>
@@ -1285,9 +1438,15 @@ void World<T>::record_op(ShapeOperationRecord const & rec)
             m_open_operation.op == rec.op && m_open_operation.cx == rec.cx &&
             m_open_operation.cy == rec.cy)
         {
+            // Translations and rotations about a fixed pivot add; scales about
+            // a fixed pivot compose multiplicatively. Records carry the neutral
+            // element for the axes they do not use (dx=dy=angle=0, sx=sy=1), so
+            // one merge rule covers every op.
             m_open_operation.dx += rec.dx;
             m_open_operation.dy += rec.dy;
             m_open_operation.angle += rec.angle;
+            m_open_operation.sx *= rec.sx;
+            m_open_operation.sy *= rec.sy;
         }
         else
         {
@@ -1317,6 +1476,7 @@ void World<T>::undo_record(ShapeOperationRecord const & rec)
     case ShapeOp::REMOVE: revive_shape(rec.shape_id, rec.type); break;
     case ShapeOp::TRANSLATE: apply_translate(rec.shape_id, -rec.dx, -rec.dy); break;
     case ShapeOp::ROTATE: apply_rotate(rec.shape_id, -rec.angle, rec.cx, rec.cy); break;
+    case ShapeOp::SCALE: apply_scale(rec.shape_id, value_type(1) / rec.sx, value_type(1) / rec.sy, rec.cx, rec.cy); break;
     }
 }
 
@@ -1329,6 +1489,7 @@ void World<T>::redo_record(ShapeOperationRecord const & rec)
     case ShapeOp::REMOVE: kill_shape(rec.shape_id); break;
     case ShapeOp::TRANSLATE: apply_translate(rec.shape_id, rec.dx, rec.dy); break;
     case ShapeOp::ROTATE: apply_rotate(rec.shape_id, rec.angle, rec.cx, rec.cy); break;
+    case ShapeOp::SCALE: apply_scale(rec.shape_id, rec.sx, rec.sy, rec.cx, rec.cy); break;
     }
 }
 

@@ -333,7 +333,7 @@ class WorldShapeTC(unittest.TestCase):
 
 
 class WorldPrimitivesTC(unittest.TestCase):
-    """Polyline, polygon, and text primitives."""
+    """Polyline, polygon, text, and arc primitives."""
 
     def setUp(self):
         self.w = solvcon.WorldFp64()
@@ -380,6 +380,81 @@ class WorldPrimitivesTC(unittest.TestCase):
         self.assertAlmostEqual(obb[5], obb[7])  # BR.y == BL.y
         self.assertAlmostEqual(obb[0], obb[6])  # TL.x == BL.x
         self.assertAlmostEqual(obb[2], obb[4])  # TR.x == BR.x
+
+    def test_arc_semicircle_bbox(self):
+        # A half turn of radius 3 spans x in [-3, 3] and y in [0, 3]; the
+        # cubic control hull matches the true arc box at the quadrant splits.
+        sid = self.w.add_arc(0, 0, 3, 3, 0, math.pi)
+        self.assertEqual(self.w.shape_type_of(sid), "arc")
+        bbox = self.w.shape_bbox(sid)
+        self.assertAlmostEqual(bbox[0], -3.0)
+        self.assertAlmostEqual(bbox[1], 0.0)
+        self.assertAlmostEqual(bbox[2], 3.0)
+        self.assertAlmostEqual(bbox[3], 3.0)
+
+    def test_arc_needs_nonzero_sweep(self):
+        with self.assertRaises(ValueError):
+            self.w.add_arc(0, 0, 1, 1, 1.0, 1.0)
+
+    def test_arc_rejects_nonfinite_and_oversized_sweep(self):
+        # A NaN/inf angle or a sweep past a full turn would blow up the
+        # segment count; both are rejected rather than reaching that math.
+        with self.assertRaises(ValueError):
+            self.w.add_arc(0, 0, 1, 1, 0.0, float("inf"))
+        with self.assertRaises(ValueError):
+            self.w.add_arc(0, 0, 1, 1, 0.0, 10.0)  # > 2*pi
+
+
+class WorldScaleTC(unittest.TestCase):
+    """scale_shape and its undo/redo."""
+
+    def setUp(self):
+        self.w = solvcon.WorldFp64()
+
+    def test_scale_about_origin(self):
+        sid = self.w.add_rectangle(0, 0, 2, 2)
+        self.w.scale_shape(sid, 2.0, 3.0, 0.0, 0.0)
+        self.assertEqual(self.w.shape_bbox(sid), [0, 0, 4, 6])
+
+    def test_scale_about_center_keeps_center(self):
+        sid = self.w.add_rectangle(-1, -1, 1, 1)
+        self.w.scale_shape(sid, 4.0, 4.0, 0.0, 0.0)
+        self.assertEqual(self.w.shape_bbox(sid), [-4, -4, 4, 4])
+
+    def test_scale_zero_factor_raises(self):
+        sid = self.w.add_rectangle(0, 0, 2, 2)
+        with self.assertRaises(ValueError):
+            self.w.scale_shape(sid, 0.0, 1.0, 0.0, 0.0)
+
+    def test_scale_nonfinite_raises(self):
+        # An inf/NaN factor or pivot would poison the geometry and R-tree
+        # bounds and leave an un-invertible undo record.
+        sid = self.w.add_rectangle(0, 0, 2, 2)
+        with self.assertRaises(ValueError):
+            self.w.scale_shape(sid, float("inf"), 1.0, 0.0, 0.0)
+        with self.assertRaises(ValueError):
+            self.w.scale_shape(sid, 2.0, 2.0, float("nan"), 0.0)
+
+    def test_scale_undo_restores_size(self):
+        sid = self.w.add_rectangle(0, 0, 2, 2)
+        self.w.scale_shape(sid, 5.0, 5.0, 0.0, 0.0)
+        self.assertTrue(self.w.can_undo)
+        self.w.undo()
+        bbox = self.w.shape_bbox(sid)
+        self.assertAlmostEqual(bbox[2], 2.0)
+        self.assertAlmostEqual(bbox[3], 2.0)
+        self.w.redo()
+        self.assertAlmostEqual(self.w.shape_bbox(sid)[2], 10.0)
+
+    def test_unit_scale_records_nothing(self):
+        sid = self.w.add_rectangle(0, 0, 2, 2)
+        self.w.undo()  # drop the create so the stack is empty
+        self.assertFalse(self.w.can_undo)
+        self.w.redo()
+        self.w.scale_shape(sid, 1.0, 1.0, 0.0, 0.0)
+        # A no-op scale leaves the create as the only undoable step.
+        self.w.undo()
+        self.assertEqual(self.w.nshape, 0)
 
 
 class WorldUndoRedoTC(unittest.TestCase):
