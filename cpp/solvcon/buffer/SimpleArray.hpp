@@ -1960,14 +1960,36 @@ public:
         return SimpleArray<U>(shape, m_buffer);
     }
 
+    /**
+     * Reshape to a new shape, preserving the logical element order.
+     *
+     * Returns a zero-copy view when the source is C-contiguous;
+     * otherwise copies the elements in C order into a new dense buffer,
+     * matching numpy's reshape(order='C'). Rejects an array with ghost
+     * cells, whose ghost/body split has no well-defined element mapping.
+     *
+     * @param shape The new shape; its element count must match the source.
+     * @return A view when C-contiguous, otherwise a copy.
+     */
     SimpleArray reshape(shape_type const & shape) const
     {
-        return SimpleArray(shape, m_buffer);
+        if (has_ghost())
+        {
+            throw std::runtime_error(
+                std::format("SimpleArray: cannot reshape an array with {} ghost cells", m_nghost));
+        }
+        // Reuse the buffer only when it holds exactly the logical element
+        const bool exact_buffer = m_buffer && size() * ITEMSIZE == m_buffer->nbytes();
+        if (is_c_contiguous() && exact_buffer)
+        {
+            return SimpleArray(shape, m_buffer);
+        }
+        return reshape_by_copy(shape);
     }
 
     SimpleArray reshape() const
     {
-        return SimpleArray(m_shape, m_buffer);
+        return reshape(m_shape);
     }
 
     void swap(SimpleArray & other) noexcept
@@ -2277,6 +2299,25 @@ private:
             return 0;
         }
         return shape[0] * stride[0];
+    }
+
+    /// Copy the elements in C order into a fresh exact buffer, then reinterpret it as the target shape.
+    SimpleArray reshape_by_copy(shape_type const & shape) const
+    {
+        ssize_t target = 1;
+        for (ssize_t const dim : shape)
+        {
+            target *= dim;
+        }
+        if (static_cast<size_t>(target) != size())
+        {
+            throw std::runtime_error(
+                std::format("SimpleArray: cannot reshape size {} into size {}", size(), target));
+        }
+
+        SimpleArray row_major(m_shape);
+        copy_logical_into(row_major);
+        return SimpleArray(shape, row_major.m_buffer);
     }
 
     /// Contiguous data buffer for the array.

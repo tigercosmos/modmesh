@@ -282,6 +282,67 @@ class SimpleArrayBasicTC(unittest.TestCase):
         self.assertEqual((12, 2), sarr.reshape((12, 2)).shape)
         self.assertEqual((2, 2, 2, 3), sarr.reshape((2, 2, 2, 3)).shape)
 
+    def test_SimpleArray_reshape_transposed(self):
+        ndarr = np.arange(6, dtype="float64").reshape((2, 3))
+        view = ndarr.T
+        sarr = solvcon.SimpleArrayFloat64(array=view)
+
+        expected = view.reshape((6,))
+        actual = sarr.reshape((6,)).ndarray
+        np.testing.assert_array_equal(actual, expected)
+
+    def test_SimpleArray_reshape_fortran(self):
+        ndarr = np.asfortranarray(
+            np.arange(6, dtype="float64").reshape((2, 3)))
+        sarr = solvcon.SimpleArrayFloat64(array=ndarr)
+
+        np.testing.assert_array_equal(
+            sarr.reshape((6,)).ndarray, ndarr.reshape((6,)))
+        np.testing.assert_array_equal(
+            sarr.reshape((3, 2)).ndarray, ndarr.reshape((3, 2)))
+
+    def test_SimpleArray_reshape_strided(self):
+        ndarr = np.arange(12, dtype="float64").reshape((3, 4))
+        view = ndarr[:, ::2]
+        sarr = solvcon.SimpleArrayFloat64(array=view)
+
+        np.testing.assert_array_equal(
+            sarr.reshape((6,)).ndarray, view.reshape((6,)))
+
+    def test_SimpleArray_reshape_contiguous_slice(self):
+        ndarr = np.arange(12, dtype="float64").reshape((3, 4))
+        view = ndarr[:2]
+        sarr = solvcon.SimpleArrayFloat64(array=view)
+
+        np.testing.assert_array_equal(
+            sarr.reshape((8,)).ndarray, view.reshape((8,)))
+
+    def test_SimpleArray_reshape_contiguous_is_view(self):
+        ndarr = np.arange(6, dtype="float64").reshape((2, 3))
+        sarr = solvcon.SimpleArrayFloat64(array=ndarr)
+
+        reshaped = sarr.reshape((6,))
+        reshaped[0] = 100.0
+        self.assertEqual(100.0, ndarr[0, 0])
+
+    def test_SimpleArray_reshape_copy_is_independent(self):
+        ndarr = np.arange(6, dtype="float64").reshape((2, 3))
+        view = ndarr.T
+        sarr = solvcon.SimpleArrayFloat64(array=view)
+
+        reshaped = sarr.reshape((6,))
+        reshaped[0] = 100.0
+        self.assertEqual(0.0, ndarr[0, 0])
+
+    def test_SimpleArray_reshape_ghost_raises(self):
+        sarr = solvcon.SimpleArrayFloat64((6,))
+        sarr.nghost = 2
+        with self.assertRaisesRegex(
+                RuntimeError,
+                "SimpleArray: cannot reshape an array with 2 ghost cells"
+        ):
+            sarr.reshape((3, 2))
+
     def test_SimpleArray_negative_shape_raises(self):
         with self.assertRaisesRegex(
                 IndexError,
