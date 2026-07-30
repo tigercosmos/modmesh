@@ -14,6 +14,7 @@ events, so they need the Qt pilot but no on-screen rendering.
 import unittest
 
 import solvcon
+from pilot_ci import SKIP_PILOT_WIDGETS
 
 try:
     from solvcon import pilot
@@ -35,21 +36,27 @@ def _send_key(widget, key, text="", mod=None):
         QtWidgets.QApplication.sendEvent(widget, event)
 
 
-@unittest.skipUnless(solvcon.HAS_PILOT and pilot is not None,
-                     "Qt pilot is not built")
+@unittest.skipUnless(solvcon.HAS_PILOT and pilot is not None
+                     and not SKIP_PILOT_WIDGETS,
+                     "Qt pilot is not built, or widget tests are skipped")
 class TerminalWidgetTC(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
         cls.mgr = pilot.RManager.instance.setUp()
+        # Pin a known variant so the syntax and output colors are
+        # deterministic, and restore the shared default afterward. A theme
+        # switch repolishes every widget, so pay for it once for the class
+        # rather than twice per test.
+        cls.mgr.set_theme("light")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.mgr.set_theme("system")
 
     def setUp(self):
         self.term = self.mgr.pyterm
         self.edit = self.term.textEdit
-        # Pin a known variant so the syntax and output colors are
-        # deterministic, and restore the shared default afterward.
-        self.mgr.set_theme("light")
-        self.addCleanup(self.mgr.set_theme, "system")
         # Start each test from a clean primary prompt, abandoning any block a
         # previous test left open in the shared interpreter.
         self.term.resetInput()
@@ -231,6 +238,9 @@ class TerminalWidgetTC(unittest.TestCase):
                          (expected.red(), expected.green(), expected.blue()))
 
     def test_output_colors_follow_a_dark_switch(self):
+        # The only test that leaves the class-wide pin, so it puts the light
+        # variant back for the tests that follow.
+        self.addCleanup(self.mgr.set_theme, "light")
         # Under the dark theme the captured stderr stays red-dominant but
         # takes a distinct, brighter value than the light table's, and stdout
         # takes the dark palette's text color.
