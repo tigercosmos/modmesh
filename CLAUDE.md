@@ -111,6 +111,13 @@ without installation, and works around macOS SIP stripping `DYLD_LIBRARY_PATH`.
   does not take over the desktop (`tests/conftest.py`). Export
   `SOLVCON_TEST_SHOW_WINDOWS=ON` to watch the windows instead, which hands
   them the desktop and the keyboard for the length of the run.
+- The pull-request CI lane runs the pilot GUI tests once instead of twice, and
+  only a smoke slice of the theme and terminal matrix; the nightly schedule
+  runs everything (`tests/pilot_ci.py` explains the two guards). Local runs are
+  never guarded, so run the full suite yourself when you touch
+  `cpp/solvcon/pilot/theme/`, `solvcon/pilot/base/_theme.py`,
+  `tests/test_pilot_theme.py`, or `tests/test_pilot_terminal.py`; otherwise a
+  regression there waits for the nightly email.
 - `make gtest` -- build and run the full C++ test suite.
 - `./build/rel<pyvminor>/gtests/run_gtest --gtest_filter=Suite.Test` -- run a
   single gtest after `make gtest` has built the binary

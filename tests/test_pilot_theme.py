@@ -6,7 +6,7 @@ import os
 import unittest
 
 import solvcon
-from pilot_ci import SKIP_PILOT_WIDGETS
+from pilot_ci import PILOT_SMOKE, SKIP_PILOT_WIDGETS, SMOKE_SKIP_REASON
 
 try:
     from solvcon import pilot
@@ -68,6 +68,7 @@ class ThemeManagerTC(unittest.TestCase):
         self.assertEqual(self.mgr.theme_mode, "system")
 
 
+@unittest.skipIf(PILOT_SMOKE, SMOKE_SKIP_REASON)
 @unittest.skipIf(NO_LIVE_WINDOW or SKIP_PILOT_WIDGETS or not solvcon.HAS_PILOT,
                  "pilot windows need a real window surface")
 class ThemeMenuTC(unittest.TestCase):
@@ -129,6 +130,7 @@ class ThemeMenuTC(unittest.TestCase):
         self.assertEqual(checked.objectName(), "theme.mode_dark")
 
 
+@unittest.skipIf(PILOT_SMOKE, SMOKE_SKIP_REASON)
 @unittest.skipIf(NO_LIVE_WINDOW or SKIP_PILOT_WIDGETS or not solvcon.HAS_PILOT,
                  "pilot windows need a real window surface")
 class ThemeLookTC(unittest.TestCase):
@@ -182,6 +184,7 @@ class ThemeLookTC(unittest.TestCase):
                          "theme.look_system")
 
 
+@unittest.skipIf(PILOT_SMOKE, SMOKE_SKIP_REASON)
 @unittest.skipIf(NO_LIVE_WINDOW or SKIP_PILOT_WIDGETS or not solvcon.HAS_PILOT,
                  "pilot windows need a real window surface")
 class ThemePolishTC(unittest.TestCase):
@@ -218,6 +221,7 @@ class ThemePolishTC(unittest.TestCase):
         self.assertEqual(settings.value("theme/look"), "system")
 
 
+@unittest.skipIf(PILOT_SMOKE, SMOKE_SKIP_REASON)
 @unittest.skipIf(NO_LIVE_WINDOW or SKIP_PILOT_WIDGETS or not solvcon.HAS_PILOT,
                  "pilot windows need a real window surface")
 class ThemeCanvasTC(unittest.TestCase):
@@ -267,6 +271,7 @@ class ThemeCanvasTC(unittest.TestCase):
             self.app.palette().color(QPalette.Window).lightness())
 
 
+@unittest.skipIf(PILOT_SMOKE, SMOKE_SKIP_REASON)
 @unittest.skipIf(NO_LIVE_WINDOW or SKIP_PILOT_WIDGETS or not solvcon.HAS_PILOT,
                  "pilot windows need a real window surface")
 class ThemeConsoleTC(unittest.TestCase):
