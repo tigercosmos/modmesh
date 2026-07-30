@@ -14,7 +14,7 @@ events, so they need the Qt pilot but no on-screen rendering.
 import unittest
 
 import solvcon
-from pilot_ci import SKIP_PILOT_WIDGETS
+from pilot_ci import PILOT_SMOKE, SKIP_PILOT_WIDGETS, SMOKE_SKIP_REASON
 
 try:
     from solvcon import pilot
@@ -213,6 +213,7 @@ class TerminalWidgetTC(unittest.TestCase):
         pos = self.edit.toPlainText().find("pass")
         self.assertNotIn((0, 0, 180), self._layout_colors(pos))
 
+    @unittest.skipIf(PILOT_SMOKE, SMOKE_SKIP_REASON)
     def test_stderr_output_is_red(self):
         self.term.command = "1 / 0"
         self.term.executeCommand()
@@ -222,6 +223,7 @@ class TerminalWidgetTC(unittest.TestCase):
         self.assertEqual((color.red(), color.green(), color.blue()),
                          (170, 0, 0))
 
+    @unittest.skipIf(PILOT_SMOKE, SMOKE_SKIP_REASON)
     def test_stdout_output_uses_the_theme_text_color(self):
         self.term.command = "print('marker_out')"
         self.term.executeCommand()
@@ -232,6 +234,7 @@ class TerminalWidgetTC(unittest.TestCase):
         self.assertEqual((color.red(), color.green(), color.blue()),
                          (expected.red(), expected.green(), expected.blue()))
 
+    @unittest.skipIf(PILOT_SMOKE, SMOKE_SKIP_REASON)
     def test_output_colors_follow_a_dark_switch(self):
         # Under the dark theme the captured stderr stays red-dominant but
         # takes a distinct, brighter value than the light table's, and stdout

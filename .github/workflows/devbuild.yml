@@ -249,6 +249,11 @@ jobs:
         # A runner has no desktop to take over, so let this job map its windows
         # and keep the tests that need a live surface out of the skips.
         export SOLVCON_TEST_SHOW_WINDOWS=ON
+        # A theme switch repolishes every widget, so the exhaustive theme and
+        # terminal color matrix costs more than the rest of the suite. A pull
+        # request runs the smoke slice, one dark and light round trip; the
+        # nightly schedule leaves the guard empty and runs the matrix.
+        export SOLVCON_PILOT_SMOKE=${{ github.event_name != 'schedule' && '1' || '' }}
         make run_pilot_pytest VERBOSE=1
         echo "::endgroup::"
 
