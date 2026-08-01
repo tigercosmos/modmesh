@@ -36,60 +36,92 @@ class ParseToolCallsTC(unittest.TestCase):
     def test_plain_json_array(self):
         text = '[{"op": "add_circle", "r": 1.0}]'
         self.assertEqual(
-            agent.ToolCallParser.parse(text, _TOOLS),
+            agent.ToolCallParser.parse(text),
             [{"op": "add_circle", "r": 1.0}])
 
     def test_lone_object_becomes_one_command(self):
-        commands = agent.ToolCallParser.parse('{"op": "add_line"}', _TOOLS)
+        commands = agent.ToolCallParser.parse('{"op": "add_line"}')
         self.assertEqual(commands, [{"op": "add_line"}])
 
     def test_strips_code_fence(self):
         text = '```json\n[{"op": "add_circle"}]\n```'
-        self.assertEqual(agent.ToolCallParser.parse(text, _TOOLS),
+        self.assertEqual(agent.ToolCallParser.parse(text),
                          [{"op": "add_circle"}])
 
     def test_extracts_array_from_surrounding_prose(self):
         text = 'Sure! Here you go:\n[{"op": "add_circle"}]\nThanks.'
-        self.assertEqual(agent.ToolCallParser.parse(text, _TOOLS),
+        self.assertEqual(agent.ToolCallParser.parse(text),
                          [{"op": "add_circle"}])
 
     def test_empty_array_is_empty(self):
-        self.assertEqual(agent.ToolCallParser.parse("[]", _TOOLS), [])
+        self.assertEqual(agent.ToolCallParser.parse("[]"), [])
 
     def test_no_json_yields_empty(self):
-        self.assertEqual(
-            agent.ToolCallParser.parse("I cannot help.", _TOOLS), [])
+        self.assertEqual(agent.ToolCallParser.parse("I cannot help."), [])
 
     def test_malformed_json_rejected(self):
         # A JSON-looking but invalid payload must not become a successful
         # empty batch; send() should record a parser error instead.
         with self.assertRaises(ValueError):
-            agent.ToolCallParser.parse('[{"op": "add_circle",}]', _TOOLS)
+            agent.ToolCallParser.parse('[{"op": "add_circle",}]')
         with self.assertRaises(ValueError):
-            agent.ToolCallParser.parse('[{"op": "add_circle"', _TOOLS)
-
-    def test_unknown_op_rejected(self):
-        with self.assertRaises(ValueError):
-            agent.ToolCallParser.parse('[{"op": "delete_universe"}]', _TOOLS)
+            agent.ToolCallParser.parse('[{"op": "add_circle"')
 
     def test_missing_op_rejected(self):
         with self.assertRaises(ValueError):
-            agent.ToolCallParser.parse('[{"r": 1.0}]', _TOOLS)
+            agent.ToolCallParser.parse('[{"r": 1.0}]')
 
     def test_non_string_op_raises_valueerror_not_typeerror(self):
         # An unhashable op (list/object) must not blow past the ValueError
         # contract into a set-membership TypeError, or send() would crash
         # instead of recording an error.
         with self.assertRaises(ValueError):
-            agent.ToolCallParser.parse('[{"op": {"nested": 1}}]', _TOOLS)
+            agent.ToolCallParser.parse('[{"op": {"nested": 1}}]')
         with self.assertRaises(ValueError):
-            agent.ToolCallParser.parse('[{"op": ["a", "b"]}]', _TOOLS)
+            agent.ToolCallParser.parse('[{"op": ["a", "b"]}]')
 
-    def test_no_tool_surface_skips_op_validation(self):
-        # With no advertised ops, any op is accepted, so the pipeline still
-        # runs rather than rejecting everything.
-        commands = agent.ToolCallParser.parse('[{"op": "anything"}]', [])
-        self.assertEqual(commands, [{"op": "anything"}])
+    def test_unknown_op_survives_parsing(self):
+        # Op names are the runner's business: an unadvertised op must reach it
+        # as one failed command instead of voiding the whole batch here.
+        commands = agent.ToolCallParser.parse(
+            '[{"op": "add_circle"}, {"op": "delete_universe"}]')
+        self.assertEqual([command["op"] for command in commands],
+                         ["add_circle", "delete_universe"])
+
+
+class ParseReplyStatusTC(unittest.TestCase):
+    """The four shapes a reply can take, which the turn loop stops on."""
+
+    def _status(self, text):
+        return agent.ToolCallParser.parse_reply(text).status
+
+    def test_commands(self):
+        reply = agent.ToolCallParser.parse_reply('[{"op": "add_line"}]')
+        self.assertEqual(reply.status, agent.ParseStatus.COMMANDS)
+        self.assertEqual(reply.commands, [{"op": "add_line"}])
+        self.assertIsNone(reply.error)
+
+    def test_explicit_empty_batch_is_not_prose(self):
+        # "[]" is the model saying the request is done; prose is the model
+        # talking instead of acting.  A loop ends differently on each.
+        self.assertEqual(self._status("[]"), agent.ParseStatus.EMPTY)
+        self.assertEqual(self._status("```json\n[]\n```"),
+                         agent.ParseStatus.EMPTY)
+        self.assertEqual(self._status("I cannot do that."),
+                         agent.ParseStatus.PROSE)
+
+    def test_blank_reply_is_empty(self):
+        self.assertEqual(self._status("   \n"), agent.ParseStatus.EMPTY)
+
+    def test_malformed_carries_the_parse_error(self):
+        reply = agent.ToolCallParser.parse_reply('[{"op": "add_circle",}]')
+        self.assertEqual(reply.status, agent.ParseStatus.MALFORMED)
+        self.assertEqual(reply.commands, [])
+        self.assertTrue(reply.error)
+
+    def test_bad_command_entry_is_malformed(self):
+        self.assertEqual(self._status('[{"r": 1.0}]'),
+                         agent.ParseStatus.MALFORMED)
 
 
 class SubprocessBackendDiscoveryTC(unittest.TestCase):
@@ -136,12 +168,14 @@ class ClaudeCliSendTC(unittest.TestCase):
             response = self.backend.send("draw", "scene", _TOOLS)
         self.assertIsNotNone(response.error)
         self.assertEqual(response.commands, [])
+        self.assertEqual(response.outcome, agent.TransportOutcome.TRANSPORT)
 
     def test_send_nonzero_exit_is_error(self):
         self.backend._communicate = lambda argv: (1, "", "boom")
         response = self.backend.send("draw", "scene", _TOOLS)
         self.assertIn("boom", response.error)
         self.assertEqual(response.commands, [])
+        self.assertEqual(response.outcome, agent.TransportOutcome.TRANSPORT)
 
     def test_send_timeout_is_error(self):
         def _timeout(argv):
@@ -149,13 +183,71 @@ class ClaudeCliSendTC(unittest.TestCase):
         self.backend._communicate = _timeout
         response = self.backend.send("draw", "scene", _TOOLS)
         self.assertIn("timed out", response.error)
+        self.assertEqual(response.outcome, agent.TransportOutcome.TIMEOUT)
 
-    def test_send_unknown_op_reports_error_without_commands(self):
+    def test_send_after_cancel_reports_cancelled_not_transport(self):
+        # Cancelling kills the child, which looks like any failed run.  The
+        # outcome must still say it was deliberate, or a loop would treat a
+        # user's Stop as a fault worth reporting as one.
+        def _killed(argv):
+            self.backend.cancel()
+            return -15, "", ""
+
+        self.backend._communicate = _killed
+        response = self.backend.send("draw", "scene", _TOOLS)
+        self.assertEqual(response.outcome, agent.TransportOutcome.CANCELLED)
+
+    def test_a_cancelled_call_that_still_succeeded_applies_nothing(self):
+        # Stop can land in the moment before the child is reachable, killing
+        # nothing.  The CLI then answers, and those commands must not run: the
+        # user asked for none.
+        def _survived(argv):
+            self.backend.cancel()
+            return 0, _envelope('[{"op": "add_circle"}]'), ""
+
+        self.backend._communicate = _survived
+        response = self.backend.send("draw", "scene", _TOOLS)
+        self.assertEqual(response.outcome, agent.TransportOutcome.CANCELLED)
+        self.assertEqual(response.commands, [])
+
+    def test_a_cancel_during_spawn_still_terminates_the_child(self):
+        killed = []
+
+        class _Proc:
+            returncode = 0
+
+            def poll(self):
+                return None
+
+            def terminate(self):
+                killed.append(True)
+
+            def communicate(self, timeout=None):
+                return _envelope("[]"), ""
+
+        def _popen(argv, **kwargs):
+            self.backend.cancel()  # arrives before Popen returns
+            return _Proc()
+
+        with mock.patch("subprocess.Popen", _popen):
+            self.backend.send("draw", "scene", _TOOLS)
+        self.assertTrue(killed)
+
+    def test_send_forgets_an_earlier_cancel(self):
+        self.backend.cancel()
+        self.backend._communicate = lambda argv: (1, "", "boom")
+        response = self.backend.send("draw", "scene", _TOOLS)
+        self.assertEqual(response.outcome, agent.TransportOutcome.TRANSPORT)
+
+    def test_send_unknown_op_reaches_the_runner(self):
+        # Parsing does not judge op names, so an unadvertised op comes back as
+        # a command the session runs and fails on its own.
         reply = _envelope('[{"op": "delete_universe"}]')
         self.backend._communicate = lambda argv: (0, reply, "")
         response = self.backend.send("wreck it", "scene", _TOOLS)
-        self.assertIsNotNone(response.error)
-        self.assertEqual(response.commands, [])
+        self.assertIsNone(response.error)
+        self.assertEqual(response.commands, [{"op": "delete_universe"}])
+        self.assertEqual(response.status, agent.ParseStatus.COMMANDS)
 
     def test_send_malformed_json_is_error_not_empty_success(self):
         # Invalid JSON must surface as an error, not a silent empty batch.
@@ -164,6 +256,8 @@ class ClaudeCliSendTC(unittest.TestCase):
         response = self.backend.send("draw", "scene", _TOOLS)
         self.assertIsNotNone(response.error)
         self.assertEqual(response.commands, [])
+        self.assertEqual(response.outcome, agent.TransportOutcome.OK)
+        self.assertEqual(response.status, agent.ParseStatus.MALFORMED)
 
     def test_send_unhashable_op_is_error_not_crash(self):
         # A malformed reply must come back as an error result, never an
@@ -291,6 +385,41 @@ class SubprocessBackendPinningTC(unittest.TestCase):
         self.assertEqual(argv[argv.index("--permission-mode") + 1], "dontAsk")
 
 
+class ScriptedEchoBackendTC(unittest.TestCase):
+    def test_text_replies_run_through_the_real_parser(self):
+        backend = agent.ScriptedEchoBackend([
+            '```json\n[{"op": "add_circle"}]\n```', "[]"])
+        first = backend.send("draw", "scene", _TOOLS)
+        self.assertEqual(first.commands, [{"op": "add_circle"}])
+        self.assertEqual(first.status, agent.ParseStatus.COMMANDS)
+        second = backend.send("draw", "scene", _TOOLS)
+        self.assertEqual(second.status, agent.ParseStatus.EMPTY)
+
+    def test_ready_responses_pass_through(self):
+        canned = agent.BackendResponse(
+            error="gone", outcome=agent.TransportOutcome.TIMEOUT)
+        backend = agent.ScriptedEchoBackend([canned])
+        self.assertIs(backend.send("draw", "scene", _TOOLS), canned)
+
+    def test_exhausted_script_ends_a_turn(self):
+        backend = agent.ScriptedEchoBackend()
+        response = backend.send("draw", "scene", _TOOLS)
+        self.assertEqual(response.status, agent.ParseStatus.EMPTY)
+        self.assertEqual(response.outcome, agent.TransportOutcome.OK)
+
+    def test_requests_are_recorded(self):
+        backend = agent.ScriptedEchoBackend(["[]"])
+        backend.send("draw", "one shape", _TOOLS, ["a turn"])
+        request, = backend.requests
+        self.assertEqual(request.prompt, "draw")
+        self.assertEqual(request.scene_context, "one shape")
+        self.assertEqual(request.tool_surface, _TOOLS)
+        self.assertEqual(request.history, ["a turn"])
+
+    def test_it_stays_out_of_the_registry(self):
+        self.assertIsNone(agent.BackendRegistry.get("scripted (offline)"))
+
+
 class RegistrationTC(unittest.TestCase):
     def test_claude_registers_on_import(self):
         backend = agent.BackendRegistry.get("claude (cli)")
@@ -360,6 +489,7 @@ class OpenAIHttpBackendTC(unittest.TestCase):
         response = self.backend.send("draw", "scene", _TOOLS)
         self.assertIn("status 500", response.error)
         self.assertEqual(response.commands, [])
+        self.assertEqual(response.outcome, agent.TransportOutcome.TRANSPORT)
 
     def test_send_transport_failure_is_error(self):
         def _fail(body):
@@ -368,6 +498,7 @@ class OpenAIHttpBackendTC(unittest.TestCase):
         response = self.backend.send("draw", "scene", _TOOLS)
         self.assertIn("failed", response.error)
         self.assertEqual(response.commands, [])
+        self.assertEqual(response.outcome, agent.TransportOutcome.TRANSPORT)
 
     def test_send_timeout_is_error(self):
         def _timeout(body):
@@ -375,13 +506,36 @@ class OpenAIHttpBackendTC(unittest.TestCase):
         self.backend._post_chat = _timeout
         response = self.backend.send("draw", "scene", _TOOLS)
         self.assertIn("timed out", response.error)
+        self.assertEqual(response.outcome, agent.TransportOutcome.TIMEOUT)
 
-    def test_send_unknown_op_reports_error_without_commands(self):
+    def test_send_after_cancel_reports_cancelled(self):
+        # Cancelling closes the socket, which surfaces as a plain OSError.
+        def _closed(body):
+            self.backend.cancel()
+            raise OSError("closed")
+
+        self.backend._post_chat = _closed
+        response = self.backend.send("draw", "scene", _TOOLS)
+        self.assertEqual(response.outcome, agent.TransportOutcome.CANCELLED)
+
+    def test_a_cancelled_call_that_still_answered_applies_nothing(self):
+        raw = self._chat_body('[{"op": "add_circle"}]')
+
+        def _raced(body):
+            self.backend.cancel()  # the socket was not reachable yet
+            return 200, raw
+
+        self.backend._post_chat = _raced
+        response = self.backend.send("draw", "scene", _TOOLS)
+        self.assertEqual(response.outcome, agent.TransportOutcome.CANCELLED)
+        self.assertEqual(response.commands, [])
+
+    def test_send_unknown_op_reaches_the_runner(self):
         raw = self._chat_body('[{"op": "delete_universe"}]')
         self.backend._post_chat = lambda body: (200, raw)
         response = self.backend.send("wreck it", "scene", _TOOLS)
-        self.assertIsNotNone(response.error)
-        self.assertEqual(response.commands, [])
+        self.assertIsNone(response.error)
+        self.assertEqual(response.commands, [{"op": "delete_universe"}])
 
     def test_send_malformed_json_is_error_not_empty_success(self):
         raw = self._chat_body('[{"op": "add_circle",}]')
@@ -389,6 +543,7 @@ class OpenAIHttpBackendTC(unittest.TestCase):
         response = self.backend.send("draw", "scene", _TOOLS)
         self.assertIsNotNone(response.error)
         self.assertEqual(response.commands, [])
+        self.assertEqual(response.status, agent.ParseStatus.MALFORMED)
 
     def test_parse_chat_payload_joins_content_parts(self):
         text = agent.OpenAIHttpBackend._parse_chat_payload({

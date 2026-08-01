@@ -119,13 +119,14 @@ class _FakeBackend:
 
 
 class RunTurnTC(unittest.TestCase):
-    def test_records_user_and_agent_turns_and_runs_commands(self):
+    def test_one_step_records_user_and_agent_turns_and_runs_commands(self):
+        # budget=1 is the single shot: ask once, apply once, stop.
         cmds = [{"op": "add_circle", "cx": 0.0, "cy": 0.0, "r": 1.0}]
         backend = _FakeBackend(
             agent.BackendResponse(text="drawing", commands=cmds))
         runner = _RecordingRunner()
         session = agent.AgentSession(backend=backend, runner=runner)
-        turn = session.run_turn("draw a circle")
+        turn = session.run_turn("draw a circle", budget=1)
         self.assertEqual(runner.commands, cmds)
         self.assertEqual([t.role for t in session.transcript],
                          ["user", "agent"])
@@ -170,7 +171,7 @@ class RunTurnTC(unittest.TestCase):
         backend = _FakeBackend(agent.BackendResponse(
             commands=[{"op": "add_circle"}, {"op": "add_square"}]))
         session = _Session(backend=backend)
-        turn = session.run_turn("draw two shapes")
+        turn = session.run_turn("draw two shapes", budget=1)
         # Results line up with commands even when the runner cannot be built.
         self.assertEqual(len(turn.results), 2)
         self.assertFalse(any(r.ok for r in turn.results))
@@ -335,6 +336,22 @@ class AgentDrawIntegrationTC(unittest.TestCase):
         opted_in = agent.AgentSession(hidden_ops=())
         self.assertIn("render_png",
                       {tool["name"] for tool in opted_in.tool_surface()})
+
+    def test_a_renderer_brings_render_png_back(self):
+        # Injecting a renderer is the whole reason the op is hidden by
+        # default, so it must not also have to be un-hidden by hand: the
+        # session would otherwise refuse the command it was equipped to run.
+        session = agent.AgentSession(renderer=object())
+        self.assertIn("render_png",
+                      {tool["name"] for tool in session.tool_surface()})
+        self.assertNotIn("render_png", session.hidden_ops)
+
+    def test_a_hidden_op_is_refused_instead_of_run(self):
+        world = solvcon.WorldFp64()
+        session = agent.AgentSession(world=world)
+        result = session.apply_commands([{"op": "render_png"}])[0]
+        self.assertFalse(result.ok)
+        self.assertIn("disabled", result.error)
 
 
 # vim: set ff=unix fenc=utf8 et sw=4 ts=4 sts=4:
