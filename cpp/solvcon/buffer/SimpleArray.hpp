@@ -35,6 +35,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -106,6 +107,27 @@ inline ssize_t buffer_offset(small_vector<ssize_t> const & stride, small_vector<
         offset += stride[it] * idx[it];
     }
     return offset;
+}
+
+/// Which end of a run of equal values a search lands on.
+enum class SearchSide : uint8_t
+{
+    Left = 0, ///< The first position where the value may be inserted.
+    Right = 1, ///< The position after the last equal element.
+}; /* end enum class SearchSide */
+
+inline SearchSide search_side_from_string(std::string const & side)
+{
+    if (side == "left")
+    {
+        return SearchSide::Left;
+    }
+    if (side == "right")
+    {
+        return SearchSide::Right;
+    }
+    throw std::invalid_argument(
+        std::format(R"(SimpleArray::searchsorted(): side must be "left" or "right" but got "{}")", side));
 }
 
 namespace detail
@@ -1323,6 +1345,29 @@ void SimpleArrayMixinCalculators<A, T>::find_two_bins(const uint32_t * freq, siz
     }
 }
 
+/**
+ * Order one scalar with NaN placed after every number and held equal to
+ * another NaN, which is how numpy sorts and searches. The built-in comparison
+ * cannot express it, because it answers false in both directions for a NaN.
+ */
+template <typename V>
+bool nan_aware_less_scalar(V const & lhs, V const & rhs)
+{
+    if constexpr (std::is_floating_point_v<V>)
+    {
+        if (std::isnan(rhs))
+        {
+            return !std::isnan(lhs);
+        }
+        if (std::isnan(lhs))
+        {
+            return false;
+        }
+    }
+
+    return lhs < rhs;
+}
+
 template <typename A, typename T>
 class SimpleArrayMixinSort
 {
@@ -1337,24 +1382,49 @@ public:
 
     void sort();
     SimpleArray<uint64_t> argsort();
+    size_t searchsorted(value_type const & value, SearchSide side = SearchSide::Left) const;
+    SimpleArray<uint64_t> searchsorted(A const & values, SearchSide side = SearchSide::Left) const;
     template <IntegralType I>
     A take_along_axis(SimpleArray<I> const & indices);
     template <IntegralType I>
     A take_along_axis_simd(SimpleArray<I> const & indices);
 
+private:
+
+    void validate_1d(char const * op) const;
+    static void validate_1d(ssize_t ndim, char const * op, char const * what);
+    static bool nan_aware_less(value_type const & lhs, value_type const & rhs);
+    static size_t search_bound(value_type const * first, value_type const * last, value_type const & value, SearchSide side);
+    static bool is_nondecreasing(value_type const & prev, value_type const & cur);
+
 }; /* end class SimpleArrayMixinSort */
+
+template <typename A, typename T>
+void SimpleArrayMixinSort<A, T>::validate_1d(char const * op) const
+{
+    auto const * athis = static_cast<A const *>(this);
+    validate_1d(athis->ndim(), op, "array");
+}
+
+template <typename A, typename T>
+void SimpleArrayMixinSort<A, T>::validate_1d(ssize_t ndim, char const * op, char const * what)
+{
+    if (ndim != 1)
+    {
+        throw std::runtime_error(
+            std::format("SimpleArray::{}(): "
+                        "currently only support 1D array but the {} is {} dimension",
+                        op,
+                        what,
+                        ndim));
+    }
+}
 
 template <typename A, typename T>
 void SimpleArrayMixinSort<A, T>::sort()
 {
+    validate_1d("sort");
     auto athis = static_cast<A *>(this);
-    if (athis->ndim() != 1)
-    {
-        throw std::runtime_error(
-            std::format(
-                "SimpleArray::sort(): currently only support 1D array but the array is {} dimension", athis->ndim()));
-    }
-
     std::sort(athis->begin(), athis->end());
 }
 
@@ -2913,14 +2983,8 @@ void SimpleArray<T>::copy_logical_into(SimpleArray & out) const
 template <typename A, typename T>
 SimpleArray<uint64_t> detail::SimpleArrayMixinSort<A, T>::argsort()
 {
+    validate_1d("argsort");
     auto athis = static_cast<A *>(this);
-    if (athis->ndim() != 1)
-    {
-        throw std::runtime_error(
-            std::format("SimpleArray::argsort(): "
-                        "currently only support 1D array but the array is {} dimension",
-                        athis->ndim()));
-    }
 
     SimpleArray<uint64_t> ret(athis->shape());
 
@@ -2930,12 +2994,106 @@ SimpleArray<uint64_t> detail::SimpleArrayMixinSort<A, T>::argsort()
                       { v = cnt++; });
     }
 
-    value_type const * buf = athis->body();
+    // Index from begin(), the range that sort() and take_along_axis() work on.
+    // body() skips the ghost part while the indices in ret do not, so a ghosted
+    // array would run past the buffer.
+    value_type const * buf = athis->begin();
+    // Break ties by position to keep the order of equal values deterministic.
     auto cmp = [buf](uint64_t a, uint64_t b)
     {
-        return buf[a] < buf[b];
+        return std::tie(buf[a], a) < std::tie(buf[b], b);
     };
     std::sort(ret.begin(), ret.end(), cmp);
+    return ret;
+}
+
+template <typename A, typename T>
+bool detail::SimpleArrayMixinSort<A, T>::nan_aware_less(value_type const & lhs, value_type const & rhs)
+{
+    // numpy sends every complex value carrying a NaN in either component past
+    // all the others as one group, whatever its other component holds, and
+    // orders within that group lexicographically like any other pair.
+    if constexpr (is_complex_v<value_type>)
+    {
+        bool const lhs_nan = std::isnan(lhs.real()) || std::isnan(lhs.imag());
+        bool const rhs_nan = std::isnan(rhs.real()) || std::isnan(rhs.imag());
+        if (lhs_nan != rhs_nan)
+        {
+            return rhs_nan;
+        }
+
+        if (nan_aware_less_scalar(lhs.real(), rhs.real()))
+        {
+            return true;
+        }
+        if (nan_aware_less_scalar(rhs.real(), lhs.real()))
+        {
+            return false;
+        }
+        return nan_aware_less_scalar(lhs.imag(), rhs.imag());
+    }
+    else
+    {
+        return nan_aware_less_scalar(lhs, rhs);
+    }
+}
+
+template <typename A, typename T>
+size_t detail::SimpleArrayMixinSort<A, T>::search_bound(
+    value_type const * first, value_type const * last, value_type const & value, SearchSide side)
+{
+    value_type const * const pos = (side == SearchSide::Left)
+                                       ? std::lower_bound(first, last, value, nan_aware_less)
+                                       : std::upper_bound(first, last, value, nan_aware_less);
+    return static_cast<size_t>(pos - first);
+}
+
+template <typename A, typename T>
+bool detail::SimpleArrayMixinSort<A, T>::is_nondecreasing(value_type const & prev, value_type const & cur)
+{
+    return !nan_aware_less(cur, prev);
+}
+
+template <typename A, typename T>
+size_t detail::SimpleArrayMixinSort<A, T>::searchsorted(value_type const & value, SearchSide side) const
+{
+    validate_1d("searchsorted");
+    auto const * athis = static_cast<A const *>(this);
+    return search_bound(athis->begin(), athis->end(), value, side);
+}
+
+template <typename A, typename T>
+SimpleArray<uint64_t> detail::SimpleArrayMixinSort<A, T>::searchsorted(A const & values, SearchSide side) const
+{
+    validate_1d("searchsorted");
+    validate_1d(values.ndim(), "searchsorted", "value array");
+    auto const * athis = static_cast<A const *>(this);
+
+    value_type const * const first = athis->begin();
+    value_type const * const last = athis->end();
+    SimpleArray<uint64_t> ret(values.shape());
+    value_type const * src = values.begin();
+    value_type const * const end = values.end();
+    value_type const * prev = nullptr;
+    uint64_t * dst = ret.begin();
+    size_t lo = 0;
+    while (src < end)
+    {
+        // Both bounds grow with the value, so a non-decreasing run of values
+        // never lands before the previous answer and only the tail of the array
+        // is left to search. Resampling onto a sorted index, which is what this
+        // is for, is entirely such a run.
+        if (prev == nullptr || !is_nondecreasing(*prev, *src))
+        {
+            lo = 0;
+        }
+        lo += search_bound(first + lo, last, *src, side);
+
+        *dst = static_cast<uint64_t>(lo);
+        prev = src;
+        ++dst;
+        ++src;
+    }
     return ret;
 }
 
@@ -2943,14 +3101,8 @@ template <typename A, typename T>
 template <IntegralType I>
 A detail::SimpleArrayMixinSort<A, T>::take_along_axis(SimpleArray<I> const & indices)
 {
+    validate_1d("take_along_axis");
     auto athis = static_cast<A *>(this);
-    if (athis->ndim() != 1)
-    {
-        throw std::runtime_error(
-            std::format("SimpleArray::take_along_axis(): "
-                        "currently only support 1D array but the array is {} dimension",
-                        athis->ndim()));
-    }
 
     ssize_t const max_idx = athis->shape()[0];
     I const * src = indices.begin();
@@ -3446,14 +3598,8 @@ template <typename A, typename T>
 template <IntegralType I>
 A detail::SimpleArrayMixinSort<A, T>::take_along_axis_simd(SimpleArray<I> const & indices)
 {
+    validate_1d("take_along_axis_simd");
     auto athis = static_cast<A *>(this);
-    if (athis->ndim() != 1)
-    {
-        const auto err = std::format("SimpleArray::take_along_axis(): "
-                                     "currently only support 1D array but the array is {} dimension",
-                                     athis->ndim());
-        throw std::runtime_error(err);
-    }
 
     if (indices.size() == 0)
     {
