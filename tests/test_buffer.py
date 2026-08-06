@@ -1430,6 +1430,20 @@ class SimpleArrayBasicTC(unittest.TestCase):
         _check(test_data[3])
         _check(test_data[4], True)
 
+    def test_sort_complex_is_lexicographic(self):
+        # sort(), argsort(), and searchsorted() all rest on ordering complex
+        # values, and each of them is undefined unless that order is strict.
+        data = np.array([2 + 1j, 1 + 5j, 2 - 1j, 1 + 5j, 0 + 0j],
+                        dtype='complex128')
+
+        sarr = solvcon.SimpleArrayComplex128(array=data.copy())
+        sarr.sort()
+        np.testing.assert_array_equal(sarr.ndarray, np.sort(data))
+
+        sarr = solvcon.SimpleArrayComplex128(array=data.copy())
+        np.testing.assert_array_equal(sarr.argsort().ndarray,
+                                      np.argsort(data, kind='stable'))
+
     def test_take_along_axis(self):
         data = [1, 5, 10, 2, 6, 9, 7, 8, 4, 3]
         narr = np.array(data, dtype='int32')
