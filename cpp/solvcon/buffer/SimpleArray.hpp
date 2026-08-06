@@ -1394,8 +1394,19 @@ private:
     void validate_1d(char const * op) const;
     static void validate_1d(ssize_t ndim, char const * op, char const * what);
     static bool nan_aware_less(value_type const & lhs, value_type const & rhs);
-    static size_t search_bound(value_type const * first, value_type const * last, value_type const & value, SearchSide side);
+    static size_t search_bound(value_type const * origin, ssize_t stride, size_t count, value_type const & value, SearchSide side);
     static bool is_nondecreasing(value_type const & prev, value_type const & cur);
+
+    /**
+     * The first element and the element-to-element step of this array read in
+     * logical order. A view can carry any step, including a negative one, so
+     * the buffer order that begin() walks is not the array order except when
+     * the step is one.
+     */
+    ssize_t logical_stride() const;
+    value_type const * logical_begin() const;
+    value_type * logical_begin();
+    bool is_dense() const;
 
 }; /* end class SimpleArrayMixinSort */
 
@@ -1404,6 +1415,30 @@ void SimpleArrayMixinSort<A, T>::validate_1d(char const * op) const
 {
     auto const * athis = static_cast<A const *>(this);
     validate_1d(athis->ndim(), op, "array");
+}
+
+template <typename A, typename T>
+ssize_t SimpleArrayMixinSort<A, T>::logical_stride() const
+{
+    return static_cast<A const *>(this)->stride()[0];
+}
+
+template <typename A, typename T>
+typename SimpleArrayMixinSort<A, T>::value_type const * SimpleArrayMixinSort<A, T>::logical_begin() const
+{
+    return static_cast<A const *>(this)->logical_data();
+}
+
+template <typename A, typename T>
+typename SimpleArrayMixinSort<A, T>::value_type * SimpleArrayMixinSort<A, T>::logical_begin()
+{
+    return static_cast<A *>(this)->logical_data();
+}
+
+template <typename A, typename T>
+bool SimpleArrayMixinSort<A, T>::is_dense() const
+{
+    return 1 == logical_stride();
 }
 
 template <typename A, typename T>
@@ -1425,7 +1460,30 @@ void SimpleArrayMixinSort<A, T>::sort()
 {
     validate_1d("sort");
     auto athis = static_cast<A *>(this);
-    std::sort(athis->begin(), athis->end());
+    value_type * const origin = logical_begin();
+    size_t const count = athis->size();
+    if (is_dense())
+    {
+        std::sort(origin, origin + count);
+        return;
+    }
+
+    // std::sort() needs a dense range, so a strided array is gathered in array
+    // order, sorted, and written back over the same steps.
+    ssize_t const stride = logical_stride();
+    A gathered(athis->shape());
+    value_type * const scratch = gathered.begin();
+    for (size_t it = 0; it < count; ++it)
+    {
+        scratch[it] = origin[static_cast<ssize_t>(it) * stride];
+    }
+
+    std::sort(scratch, scratch + count);
+
+    for (size_t it = 0; it < count; ++it)
+    {
+        origin[static_cast<ssize_t>(it) * stride] = scratch[it];
+    }
 }
 
 template <typename T, IntegralType I>
@@ -2994,14 +3052,17 @@ SimpleArray<uint64_t> detail::SimpleArrayMixinSort<A, T>::argsort()
                       { v = cnt++; });
     }
 
-    // Index from begin(), the range that sort() and take_along_axis() work on.
-    // body() skips the ghost part while the indices in ret do not, so a ghosted
-    // array would run past the buffer.
-    value_type const * buf = athis->begin();
+    // Index in array order, the order that sort() and take_along_axis() work
+    // in. body() skips the ghost part while the indices in ret do not, so a
+    // ghosted array would run past the buffer.
+    value_type const * buf = logical_begin();
+    ssize_t const stride = logical_stride();
     // Break ties by position to keep the order of equal values deterministic.
-    auto cmp = [buf](uint64_t a, uint64_t b)
+    auto cmp = [buf, stride](uint64_t a, uint64_t b)
     {
-        return std::tie(buf[a], a) < std::tie(buf[b], b);
+        value_type const & lhs = buf[static_cast<ssize_t>(a) * stride];
+        value_type const & rhs = buf[static_cast<ssize_t>(b) * stride];
+        return std::tie(lhs, a) < std::tie(rhs, b);
     };
     std::sort(ret.begin(), ret.end(), cmp);
     return ret;
@@ -3040,12 +3101,30 @@ bool detail::SimpleArrayMixinSort<A, T>::nan_aware_less(value_type const & lhs, 
 
 template <typename A, typename T>
 size_t detail::SimpleArrayMixinSort<A, T>::search_bound(
-    value_type const * first, value_type const * last, value_type const & value, SearchSide side)
+    value_type const * origin, ssize_t stride, size_t count, value_type const & value, SearchSide side)
 {
-    value_type const * const pos = (side == SearchSide::Left)
-                                       ? std::lower_bound(first, last, value, nan_aware_less)
-                                       : std::upper_bound(first, last, value, nan_aware_less);
-    return static_cast<size_t>(pos - first);
+    // The bisection is spelled out rather than handed to std::lower_bound()
+    // and std::upper_bound(), because a strided array has no pointer range for
+    // them to walk.
+    size_t lo = 0;
+    size_t hi = count;
+    while (lo < hi)
+    {
+        size_t const mid = lo + (hi - lo) / 2;
+        value_type const & probe = origin[static_cast<ssize_t>(mid) * stride];
+        bool const above = (side == SearchSide::Left)
+                               ? nan_aware_less(probe, value)
+                               : !nan_aware_less(value, probe);
+        if (above)
+        {
+            lo = mid + 1;
+        }
+        else
+        {
+            hi = mid;
+        }
+    }
+    return lo;
 }
 
 template <typename A, typename T>
@@ -3059,7 +3138,7 @@ size_t detail::SimpleArrayMixinSort<A, T>::searchsorted(value_type const & value
 {
     validate_1d("searchsorted");
     auto const * athis = static_cast<A const *>(this);
-    return search_bound(athis->begin(), athis->end(), value, side);
+    return search_bound(logical_begin(), logical_stride(), athis->size(), value, side);
 }
 
 template <typename A, typename T>
@@ -3069,30 +3148,35 @@ SimpleArray<uint64_t> detail::SimpleArrayMixinSort<A, T>::searchsorted(A const &
     validate_1d(values.ndim(), "searchsorted", "value array");
     auto const * athis = static_cast<A const *>(this);
 
-    value_type const * const first = athis->begin();
-    value_type const * const last = athis->end();
+    value_type const * const origin = logical_begin();
+    ssize_t const stride = logical_stride();
+    size_t const count = athis->size();
+
+    value_type const * const queries = values.logical_data();
+    ssize_t const query_stride = values.stride()[0];
+    size_t const query_count = values.size();
+
     SimpleArray<uint64_t> ret(values.shape());
-    value_type const * src = values.begin();
-    value_type const * const end = values.end();
-    value_type const * prev = nullptr;
     uint64_t * dst = ret.begin();
+    value_type const * prev = nullptr;
     size_t lo = 0;
-    while (src < end)
+    for (size_t it = 0; it < query_count; ++it)
     {
+        value_type const & query = queries[static_cast<ssize_t>(it) * query_stride];
+
         // Both bounds grow with the value, so a non-decreasing run of values
         // never lands before the previous answer and only the tail of the array
         // is left to search. Resampling onto a sorted index, which is what this
         // is for, is entirely such a run.
-        if (prev == nullptr || !is_nondecreasing(*prev, *src))
+        if (prev == nullptr || !is_nondecreasing(*prev, query))
         {
             lo = 0;
         }
-        lo += search_bound(first + lo, last, *src, side);
+        lo += search_bound(origin + static_cast<ssize_t>(lo) * stride, stride, count - lo, query, side);
 
         *dst = static_cast<uint64_t>(lo);
-        prev = src;
+        prev = &query;
         ++dst;
-        ++src;
     }
     return ret;
 }
@@ -3104,36 +3188,42 @@ A detail::SimpleArrayMixinSort<A, T>::take_along_axis(SimpleArray<I> const & ind
     validate_1d("take_along_axis");
     auto athis = static_cast<A *>(this);
 
-    ssize_t const max_idx = athis->shape()[0];
-    I const * src = indices.begin();
-    I const * const end = indices.end();
-    while (src < end)
+    // The result takes the shape of indices, which carries any rank, so the
+    // indices are read in flat order. Only a C-contiguous array holds that
+    // order in its buffer, and reading any other one this way would pick the
+    // wrong elements, as it silently did before.
+    if (!indices.is_c_contiguous())
     {
-        if (std::cmp_less(*src, 0) || std::cmp_greater_equal(*src, max_idx))
+        throw std::runtime_error("SimpleArray::take_along_axis(): indices must be C contiguous");
+    }
+
+    ssize_t const max_idx = athis->shape()[0];
+    I const * const index_origin = indices.logical_data();
+    size_t const index_count = indices.size();
+    for (size_t it = 0; it < index_count; ++it)
+    {
+        I const & idx = index_origin[it];
+        if (std::cmp_less(idx, 0) || std::cmp_greater_equal(idx, max_idx))
         {
-            ssize_t const offset = src - indices.begin();
-            std::string const indices_str = format_flat_index(indices.shape(), offset);
+            std::string const indices_str = format_flat_index(indices.shape(), static_cast<ssize_t>(it));
 
             throw std::out_of_range(
                 std::format("SimpleArray::take_along_axis(): "
                             "indices{} is {}, which is out of range of the array size {}",
                             indices_str,
-                            *src,
+                            idx,
                             max_idx));
         }
-        src++;
     }
 
-    src = indices.begin();
     A ret(indices.shape());
-    T const * data = athis->begin();
+    T const * const origin = logical_begin();
+    ssize_t const stride = logical_stride();
     T * dst = ret.begin();
-    while (src < end)
+    for (size_t it = 0; it < index_count; ++it)
     {
-        T const * valp = data + static_cast<ssize_t>(*src);
-        *dst = *valp;
+        *dst = origin[static_cast<ssize_t>(index_origin[it]) * stride];
         ++dst;
-        ++src;
     }
     return ret;
 }
@@ -3606,6 +3696,13 @@ A detail::SimpleArrayMixinSort<A, T>::take_along_axis_simd(SimpleArray<I> const 
         return A(indices.shape());
     }
 
+    // The vectorized gather addresses both arrays as dense blocks, so a view
+    // carrying any other layout is served by the scalar member instead.
+    if (!is_dense() || !indices.is_c_contiguous())
+    {
+        return take_along_axis(indices);
+    }
+
     ssize_t const max_idx = athis->shape()[0];
 
     I const * oor_ptr = check_index_range(indices, max_idx);
@@ -3622,10 +3719,10 @@ A detail::SimpleArrayMixinSort<A, T>::take_along_axis_simd(SimpleArray<I> const 
         throw std::out_of_range(err);
     }
 
-    I const * src = indices.begin();
-    I const * const end = indices.end();
+    I const * src = indices.logical_data();
+    I const * const end = src + indices.size();
     A ret(indices.shape());
-    T const * data = athis->begin();
+    T const * const data = logical_begin();
     T * dest = ret.begin();
     detail::indexed_copy(dest, data, src, end);
     return ret;

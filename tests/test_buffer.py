@@ -1464,6 +1464,76 @@ class SimpleArrayBasicTC(unittest.TestCase):
         np.testing.assert_array_equal(sarr.argsort().ndarray,
                                       np.argsort(data, kind='stable'))
 
+    STRIDED_VIEWS = ('[::2]', '[3:9]', '[1::3]', '[:]')
+
+    @staticmethod
+    def _strided_view(base, spec):
+        return {'[::2]': base[::2], '[3:9]': base[3:9],
+                '[1::3]': base[1::3], '[:]': base[:]}[spec]
+
+    def test_sort_mixin_reads_in_array_order(self):
+        # A view steps over its buffer, so the buffer order that begin() walks
+        # is not the array order. Every member here has to follow the step.
+        base = np.arange(20, dtype='int64')
+
+        for spec in self.STRIDED_VIEWS:
+            nview = self._strided_view(base, spec)
+            sarr = solvcon.SimpleArrayInt64(array=nview)
+            idx = solvcon.SimpleArrayUint64(
+                array=np.array([4, 0, 2, 1], dtype='uint64'))
+
+            for side in ('left', 'right'):
+                for query in (-1, 5, 6, 30):
+                    self.assertEqual(
+                        sarr.searchsorted(query, side=side),
+                        np.searchsorted(nview, query, side=side),
+                        '%s side=%s query=%d' % (spec, side, query))
+
+            np.testing.assert_array_equal(
+                sarr.argsort().ndarray,
+                np.argsort(nview, kind='stable'), err_msg=spec)
+            for meth in ('take_along_axis', 'take_along_axis_simd'):
+                np.testing.assert_array_equal(
+                    getattr(sarr, meth)(idx).ndarray,
+                    nview[[4, 0, 2, 1]], err_msg='%s %s' % (spec, meth))
+
+    def test_searchsorted_strided_value_array(self):
+        ndata = np.arange(10, dtype='int64')
+        sarr = solvcon.SimpleArrayInt64(array=ndata)
+        nvalues = np.arange(20, dtype='int64')[::4]
+        varr = solvcon.SimpleArrayInt64(array=nvalues)
+
+        np.testing.assert_array_equal(
+            sarr.searchsorted(varr).ndarray,
+            np.searchsorted(ndata, nvalues))
+
+    def test_sort_strided_leaves_the_gaps_alone(self):
+        holder = np.zeros(12, dtype='int64')
+        holder[::2] = np.array([5, 1, 4, 0, 3, 2], dtype='int64')
+        sarr = solvcon.SimpleArrayInt64(array=holder[::2])
+
+        sarr.sort()
+
+        # The sorted values land back on the same steps, and what the view
+        # steps over is not part of the array.
+        np.testing.assert_array_equal(holder[::2], [0, 1, 2, 3, 4, 5])
+        np.testing.assert_array_equal(holder[1::2], np.zeros(6, dtype='int64'))
+
+    def test_take_along_axis_rejects_strided_indices(self):
+        sarr = solvcon.SimpleArrayInt64(array=np.arange(10, dtype='int64'))
+        # Flat order is the buffer order only for a C-contiguous index array,
+        # so any other one is refused rather than read off the wrong elements.
+        idx = solvcon.SimpleArrayUint64(
+            array=np.array([4, 9, 0, 9, 2], dtype='uint64')[::2])
+
+        for meth in ('take_along_axis', 'take_along_axis_simd'):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                r"SimpleArray::take_along_axis\(\): "
+                "indices must be C contiguous"
+            ):
+                getattr(sarr, meth)(idx)
+
     def test_searchsorted(self):
         # A sorted run of values is searched forward from the previous answer,
         # so the unsorted and the repeating cases are what keep that honest.
