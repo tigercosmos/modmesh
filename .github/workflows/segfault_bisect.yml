@@ -1,0 +1,99 @@
+name: segfault_bisect
+
+# Throwaway diagnostic workflow. The probe found that the panel teardown fix
+# fails tests/test_pilot_domain_widget.py on Linux every time, so this splits
+# the fix into its three files and runs the suite with each applied alone.
+# Delete the branch and this file once the culprit is known.
+
+on:
+  push:
+    branches:
+      - 'segfault-bisect/**'
+  workflow_dispatch:
+
+jobs:
+
+  bisect:
+
+    name: suite with ${{ matrix.arm }}
+
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 60
+
+    env:
+      ARM: ${{ matrix.arm }}
+      JOB_MAKE_ARGS: BUILD_QT=ON
+      NPROC: 2
+      PIP_BREAK_SYSTEM_PACKAGES: 1
+      AQT_CONFIG: "thirdparty/aqt_settings.ini"
+      BASE_SHA: 24a5b0dc0b4379e9f4333da65cdcc57066e59c65
+
+    strategy:
+      matrix:
+        include:
+          - arm: nothing
+            revert: >-
+              solvcon/pilot/panel/_tree_panel.py
+              solvcon/pilot/visual/_mesh.py
+              tests/gui/test_tree_panel.py
+          - arm: test-teardown-only
+            revert: >-
+              solvcon/pilot/panel/_tree_panel.py
+              solvcon/pilot/visual/_mesh.py
+          - arm: style-status-only
+            revert: >-
+              solvcon/pilot/panel/_tree_panel.py
+              tests/gui/test_tree_panel.py
+          - arm: style-items-only
+            revert: >-
+              solvcon/pilot/visual/_mesh.py
+              tests/gui/test_tree_panel.py
+          - arm: everything
+            revert: ''
+      fail-fast: false
+
+    steps:
+
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: setup dependencies for Linux
+      uses: ./.github/actions/setup_linux
+      with:
+        workflow: 'build'
+
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2.23
+      with:
+        key: Linux-probe-Debug
+        restore-keys: Linux-probe-Debug
+        max-size: 1500M
+
+    - name: revert part of the fix
+      if: matrix.revert != ''
+      run: |
+        git checkout "${BASE_SHA}" -- ${{ matrix.revert }}
+        git status --short
+
+    - name: make pilot
+      run: |
+        make pilot \
+          ${JOB_MAKE_ARGS} \
+          CMAKE_BUILD_TYPE=Debug \
+          CMAKE_ARGS="-DPYTHON_EXECUTABLE=$(which python3)"
+
+    - name: run the suite twice
+      run: |
+        contrib/probe/loop_pytest.sh suite 120 "-q"
+
+    - name: upload failure logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: bisect-logs-${{ matrix.arm }}
+        path: probe-logs/
+        if-no-files-found: ignore
+
+# vim: set ff=unix fenc=utf8 et sw=2 ts=2 sts=2:
