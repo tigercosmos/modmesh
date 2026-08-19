@@ -404,7 +404,7 @@ class MeshStyleStatus(QtCore.QObject):
         mdi = self._mgr.mainWindow.centralWidget()
         if mdi is not None:
             # A newly activated viewer brings its own styles; refresh the UIs.
-            mdi.subWindowActivated.connect(lambda _sub: self.changed.emit())
+            mdi.subWindowActivated.connect(self.changed)
 
     def is_shown(self, name):
         """Whether ``name`` is drawn in the active viewer, or its default."""

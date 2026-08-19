@@ -110,11 +110,38 @@ class _CountingWorld:
         return self._real.describe_state(level=level)
 
 
-@unittest.skipIf(NO_LIVE_WINDOW or not solvcon.HAS_PILOT,
-                 "pilot windows need a real window surface")
-class MeshInfoTreeTC(unittest.TestCase):
+class _PanelTC(unittest.TestCase):
+    """Shared setup that leaves no viewer or inspector dock behind.
+
+    The RManager singleton and its window outlive the whole process, so a
+    leftover viewer or dock stays wired to ``QMdiArea::subWindowActivated``
+    for the rest of the run. The leftovers pile up until one activation fans
+    out to every panel every earlier case built, and the case that pumps the
+    event loop rebuilds them all at once.
+    """
+
     def setUp(self):
         self.mgr = pilot.RManager.instance.setUp()
+        self._docks = []
+        self._drop_windows()
+
+    def tearDown(self):
+        for dock in self._docks:
+            self.mgr.mainWindow.removeDockWidget(dock)
+            dock.deleteLater()
+        self._docks = []
+        self._drop_windows()
+
+    def _drop_windows(self):
+        self.mgr.mdiArea.closeAllSubWindows()
+        QApplication.processEvents()
+
+
+@unittest.skipIf(NO_LIVE_WINDOW or not solvcon.HAS_PILOT,
+                 "pilot windows need a real window surface")
+class MeshInfoTreeTC(_PanelTC):
+    def setUp(self):
+        super().setUp()
         # The View menu and the panel share one MeshStyleStatus.
         self.status = _mesh.MeshStyleStatus(mgr=self.mgr)
 
@@ -133,10 +160,7 @@ class MeshInfoTreeTC(unittest.TestCase):
 
 @unittest.skipIf(NO_LIVE_WINDOW or not solvcon.HAS_PILOT,
                  "pilot windows need a real window surface")
-class EntityTreeWidgetTC(unittest.TestCase):
-    def setUp(self):
-        self.mgr = pilot.RManager.instance.setUp()
-
+class EntityTreeWidgetTC(_PanelTC):
     def test_level_selector_gates_diagnostics(self):
         tree = _tree_panel.EntityTreeWidget(_crossing_world())
         self.assertIn("Diagnostics", _all_item_texts(tree._tree))
@@ -172,9 +196,9 @@ class EntityTreeWidgetTC(unittest.TestCase):
 
 @unittest.skipIf(NO_LIVE_WINDOW or not solvcon.HAS_PILOT,
                  "pilot windows need a real window surface")
-class TreePanelTC(unittest.TestCase):
+class TreePanelTC(_PanelTC):
     def setUp(self):
-        self.mgr = pilot.RManager.instance.setUp()
+        super().setUp()
         self.status = _mesh.MeshStyleStatus(mgr=self.mgr)
 
     def _panel_on(self):
@@ -182,6 +206,7 @@ class TreePanelTC(unittest.TestCase):
             mgr=self.mgr, style_status=self.status)
         feature.populate_menu()
         feature._action.setChecked(True)
+        self._docks.append(feature._dock)
         return feature
 
     def test_current_r3dwidget_exposes_mesh(self):
