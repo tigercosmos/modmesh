@@ -1,0 +1,100 @@
+name: segfault_probe
+
+# Throwaway diagnostic workflow. It loops the pilot GUI tests to measure how
+# often tests/gui/test_tree_panel.py segfaults, with and without the panel
+# teardown fix, so the fix is judged on a crash rate rather than one sample.
+# Delete the branch and this file once the question is settled.
+
+on:
+  push:
+    branches:
+      - 'segfault-probe/**'
+  workflow_dispatch:
+
+jobs:
+
+  probe:
+
+    name: tree panel loop (${{ matrix.arm }})
+
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 120
+
+    env:
+      ARM: ${{ matrix.arm }}
+      JOB_MAKE_ARGS: BUILD_QT=ON
+      NPROC: 2
+      QT_DEBUG_PLUGINS: 0
+      PIP_BREAK_SYSTEM_PACKAGES: 1
+      AQT_CONFIG: "thirdparty/aqt_settings.ini"
+      # The commit this branch forked from, whose files the baseline arm
+      # restores to undo the fix.
+      BASE_SHA: 24a5b0dc0b4379e9f4333da65cdcc57066e59c65
+      FOCUSED_SECONDS: 1200
+      FULL_SECONDS: 1800
+
+    strategy:
+      matrix:
+        arm: [baseline, fixed]
+      fail-fast: false
+
+    steps:
+
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: setup dependencies for Linux
+      uses: ./.github/actions/setup_linux
+      with:
+        workflow: 'build'
+
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2.23
+      with:
+        key: Linux-probe-Debug
+        restore-keys: Linux-probe-Debug
+        max-size: 1500M
+
+    - name: restore the pre-fix files
+      if: matrix.arm == 'baseline'
+      run: |
+        git checkout "${BASE_SHA}" -- \
+          solvcon/pilot/panel/_tree_panel.py \
+          solvcon/pilot/visual/_mesh.py \
+          tests/gui/test_tree_panel.py
+        git status --short
+
+    - name: make pilot
+      run: |
+        make pilot \
+          ${JOB_MAKE_ARGS} \
+          CMAKE_BUILD_TYPE=Debug \
+          CMAKE_ARGS="-DPYTHON_EXECUTABLE=$(which python3)"
+
+    - name: summary header
+      run: |
+        {
+          echo "| arm | phase | iterations | segfaults | other failures |"
+          echo "| --- | --- | --- | --- | --- |"
+        } >> "${GITHUB_STEP_SUMMARY}"
+
+    - name: loop the tree panel tests
+      run: |
+        contrib/probe/loop_pytest.sh focused "${FOCUSED_SECONDS}" \
+          "-k 'TreePanelTC or MeshInfoTreeTC or EntityTreeWidgetTC' -q"
+
+    - name: loop the whole suite
+      run: |
+        contrib/probe/loop_pytest.sh full "${FULL_SECONDS}" "-q"
+
+    - name: upload crash logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: probe-logs-${{ matrix.arm }}
+        path: probe-logs/
+        if-no-files-found: ignore
+
+# vim: set ff=unix fenc=utf8 et sw=2 ts=2 sts=2:
