@@ -52,15 +52,19 @@ class McapExtractTB(test_mcap.McapReaderTB, test_mcap.McapBytes):
         return sc.mcap.Reader(self.path("signals"))
 
     def extract(self, reader, topic, column_count, instructions):
-        """Return the time column and the list of field columns."""
+        """Return the time column and the list of field columns.
+
+        The plan is stated by hand, so this calls the core method that takes
+        one, not the wrapper that takes a compiled plan.
+        """
         plan = sc.core.McapDecodePlan(instructions, column_count)
-        return reader.extract(topic, plan)
+        return sc.core.McapReader.extract(reader, topic, plan)
 
     def extract_fields(self, topic, fields):
+        """Return the ``ColumnSet`` of the fields of a topic."""
         reader = self.reader()
         plan = sc.mcap.DecodePlan(reader.schema(topic), fields=fields)
-        return self.extract(reader, topic, len(plan.fields),
-                            plan.instructions)
+        return reader.extract(topic, plan)
 
     def extract_two_channels(self, schema_id, encoding):
         """Extract from a topic two channels carry.
@@ -83,37 +87,49 @@ class McapExtractTB(test_mcap.McapReaderTB, test_mcap.McapBytes):
         path = os.path.join(self.tmp.name, "two_channels.mcap")
         with open(path, "wb") as stream:
             stream.write(raw)
-        plan = sc.mcap.DecodePlan(IDL, fields=["x"])
-        return self.extract(sc.mcap.Reader(path), "/t", 1, plan.instructions)
+        reader = sc.mcap.Reader(path)
+        return reader.extract("/t", sc.mcap.DecodePlan(IDL, fields=["x"]))
 
 
 class McapExtractTC(McapExtractTB):
     def test_columns_hold_every_message(self):
-        _, columns = self.extract_fields(SAMPLE, SAMPLE_FIELDS)
-        self.assertEqual(len(columns), len(SAMPLE_FIELDS))
-        for index, field in enumerate(SAMPLE_FIELDS):
+        cols = self.extract_fields(SAMPLE, SAMPLE_FIELDS)
+        for field in SAMPLE_FIELDS:
             with self.subTest(field=field):
-                self.assertEqual(list(columns[index]), sample_values(field))
+                self.assertEqual(list(cols[field]), sample_values(field))
 
     def test_time_column(self):
-        time, _ = self.extract_fields(SAMPLE, ["speed"])
+        cols = self.extract_fields(SAMPLE, ["speed"])
         expected = [test_mcap.START_TIME + index * test_mcap.PERIOD
                     for index in range(SIGNAL_COUNT)]
-        self.assertEqual(list(time), expected)
+        self.assertEqual(list(cols.time), expected)
 
     def test_column_types(self):
         """Each column is the array type the plan states for the field."""
-        time, columns = self.extract_fields(SAMPLE, SAMPLE_FIELDS)
-        for index, field in enumerate(SAMPLE_FIELDS):
+        cols = self.extract_fields(SAMPLE, SAMPLE_FIELDS)
+        for field in SAMPLE_FIELDS:
             with self.subTest(field=field):
-                self.assertIsInstance(columns[index],
-                                      SAMPLE_COLUMNS[field][0])
-        self.assertIsInstance(time, sc.SimpleArrayUint64)
+                self.assertIsInstance(cols[field], SAMPLE_COLUMNS[field][0])
+        self.assertIsInstance(cols.time, sc.SimpleArrayUint64)
 
     def test_requested_order_is_column_order(self):
-        _, columns = self.extract_fields(SAMPLE, ["gear", "speed"])
-        self.assertEqual(list(columns[0]), sample_values("gear"))
-        self.assertEqual(list(columns[1]), sample_values("speed"))
+        cols = self.extract_fields(SAMPLE, ["gear", "speed"])
+        self.assertEqual(cols.fields, ("gear", "speed"))
+        self.assertEqual(list(cols[0]), sample_values("gear"))
+        self.assertEqual(list(cols[1]), sample_values("speed"))
+
+    def test_field_lookup(self):
+        cols = self.extract_fields(SAMPLE, ["speed", "valid"])
+        self.assertEqual(len(cols), 2)
+        self.assertIn("valid", cols)
+        self.assertNotIn("flags", cols)
+        self.assertEqual(list(cols[-1]), list(cols["valid"]))
+        with self.assertRaises(KeyError):
+            cols["flags"]
+        with self.assertRaises(IndexError):
+            cols[2]
+        with self.assertRaises(IndexError):
+            cols[-3]
 
     def test_walk_over_sequence_and_array_of_structs(self):
         """The field after the containers must land on the right offset.
@@ -121,16 +137,16 @@ class McapExtractTC(McapExtractTB):
         The wheel message holds a sequence of structs whose length changes
         from message to message, then a fixed array of the same struct.
         """
-        _, columns = self.extract_fields(WHEEL, ["slip"])
+        cols = self.extract_fields(WHEEL, ["slip"])
         expected = [0.125 * index
                     for index in range(0, SIGNAL_COUNT, WHEEL_PERIOD)]
-        self.assertEqual(list(columns[0]), expected)
+        self.assertEqual(list(cols["slip"]), expected)
 
     def test_extract_of_unknown_topic(self):
         reader = self.reader()
         plan = sc.mcap.DecodePlan(reader.schema(SAMPLE), fields=["speed"])
         with self.assertRaisesRegex(RuntimeError, "no such topic"):
-            self.extract(reader, "/signals/nothing", 1, plan.instructions)
+            reader.extract("/signals/nothing", plan)
 
     def test_topic_carried_by_two_schemas(self):
         """One plan cannot walk two layouts, so the extraction must stop.
