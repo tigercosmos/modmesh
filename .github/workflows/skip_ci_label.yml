@@ -1,0 +1,62 @@
+name: skip_ci_label
+
+# Carries the "skip-ci" label to the runs a pull request already has.
+# See issue solvcon/modmesh#814.
+#
+# devbuild, devbuild_windows, and lint listen to the opened, reopened, and
+# synchronize activity types, so a label that arrives later reaches nothing.
+# Letting them listen to "labeled" as well does not work: GitHub carries every
+# label on that activity type, and a run whose jobs the label gates off writes
+# a skipped check under the same name as the real one.  That hides a failed
+# check and turns the pull request green.  This workflow reaches the existing
+# runs instead, and writes no check of its own for the gated jobs.
+#
+# Adding the label cancels whatever is still running.  Removing it re-runs
+# what the label stopped, which reports into the original run rather than
+# adding a second set of checks.
+#
+# pull_request_target runs the copy of this file on the default branch, with a
+# token that may cancel and re-run.  Its checkout takes the base branch, never
+# the head, so no code from the pull request runs here.
+
+on:
+  pull_request_target:
+    types: [labeled, unlabeled]
+
+permissions: {}
+
+concurrency:
+  # Serialize the label events of one pull request. Two labels toggled in a
+  # row must not cancel and re-run the same runs at the same time.
+  group: skip_ci_label-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+
+  apply:
+
+    name: skip_ci_label
+
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 5
+
+    permissions:
+      actions: write
+
+    steps:
+
+      # A full tree costs more than the work itself, so take the one script
+      # and nothing else. Cone mode matches directories, not files, hence off.
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: contrib/ci/apply-skip-ci-label.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Cancel or re-run the gated workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LABEL_NAME: ${{ github.event.label.name }}
+          LABEL_ACTION: ${{ github.event.action }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: contrib/ci/apply-skip-ci-label.sh
