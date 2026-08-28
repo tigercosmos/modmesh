@@ -3,7 +3,11 @@ name: devbuild_windows
 on:
   push:
   pull_request:
-    types: [opened, reopened, synchronize]
+    # labeled and unlabeled feed the check_skip call below. Without them,
+    # adding the skip-ci label to an open pull request fires no event, so
+    # nothing re-evaluates and the heavy jobs keep running. A label event
+    # naming any other label is filtered out by the job gate below.
+    types: [opened, reopened, synchronize, labeled, unlabeled]
 
 concurrency:
   # Key each master push on its commit SHA so every merge lands in its own
@@ -13,7 +17,11 @@ concurrency:
   # drop an earlier merge's result. A unique group per SHA keeps every
   # master run independent. Pull requests key on the PR number and other
   # branches on the ref, so their superseded runs still cancel.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || (github.ref == 'refs/heads/master' && github.sha) || github.ref }}
+  #
+  # A label event naming a label other than skip-ci keys on a group of its own.
+  # Its jobs are all gated off, so sharing the pull request's group would
+  # cancel the run in flight and leave the pull request with no build at all.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || (github.ref == 'refs/heads/master' && github.sha) || github.ref }}${{ (contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) && github.event.label.name != 'skip-ci') && '-otherlabel' || '' }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 permissions:
@@ -46,7 +54,9 @@ jobs:
     # empty string is not 'false'.
     if: |
       needs.check_skip.outputs.skip != 'true' &&
-      needs.check_skip.outputs.cpp != 'false' && (
+      needs.check_skip.outputs.cpp != 'false' &&
+      (!contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) ||
+       github.event.label.name == 'skip-ci') && (
       github.event_name == 'pull_request' ||
       (github.event_name == 'push' &&
        ((vars.SCGH_PUSH_RUN_BRANCH || vars.MMGH_PUSH_RUN_BRANCH) == '*' ||

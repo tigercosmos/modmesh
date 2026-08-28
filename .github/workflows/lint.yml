@@ -3,7 +3,11 @@ name: lint
 on:
   push:
   pull_request:
-    types: [opened, reopened, synchronize]
+    # labeled and unlabeled feed the check_skip call below. Without them,
+    # adding the skip-ci label to an open pull request fires no event, so
+    # nothing re-evaluates and the heavy jobs keep running. A label event
+    # naming any other label is filtered out by the job gate below.
+    types: [opened, reopened, synchronize, labeled, unlabeled]
   # nightly_devbuild.yml calls this workflow on the cron so lint and the pilot
   # tests run at night, without a second copy of the steps. The call takes no
   # input: inside a called workflow the github context is the caller's, so the
@@ -25,7 +29,11 @@ concurrency:
   # commit: its github.ref and github.sha are master's, so a nightly that
   # starts while the master push run is still in flight would queue behind it.
   # Ref: https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations
-  group: lint-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'nightly' || github.event.pull_request.number || (github.ref == 'refs/heads/master' && github.sha) || github.ref }}
+  #
+  # A label event naming a label other than skip-ci keys on a group of its own.
+  # Its jobs are all gated off, so sharing the pull request's group would
+  # cancel the run in flight and leave the pull request with no lint at all.
+  group: lint-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'nightly' || github.event.pull_request.number || (github.ref == 'refs/heads/master' && github.sha) || github.ref }}${{ (contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) && github.event.label.name != 'skip-ci') && '-otherlabel' || '' }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
@@ -44,7 +52,9 @@ jobs:
     needs: [check_skip]
 
     if: |
-      needs.check_skip.outputs.skip != 'true' && (
+      needs.check_skip.outputs.skip != 'true' &&
+      (!contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) ||
+       github.event.label.name == 'skip-ci') && (
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'pull_request' ||
