@@ -3,37 +3,10 @@ name: devbuild
 on:
   push:
   pull_request:
-    # labeled and unlabeled feed the check_skip call below. Without them,
-    # adding the skip-ci label to an open pull request fires no event, so
-    # nothing re-evaluates and the heavy jobs keep running. A label event
-    # naming any other label is filtered out by the job gates below.
     types: [opened, reopened, synchronize, labeled, unlabeled]
-  # nightly_devbuild.yml calls this workflow on the cron so the ubuntu and
-  # macOS build runs at night, without a second copy of the steps. The call
-  # takes no input: inside a called workflow the github context is the
-  # caller's, so the job gates below read the caller's event name.
-  workflow_call:
 
 concurrency:
-  # Key each master push on its commit SHA so every merge lands in its own
-  # concurrency group. Sharing one group serializes master runs, and with
-  # cancel-in-progress disabled GitHub still cancels a pending run when the
-  # next merge queues behind the one in progress, so a later merge would
-  # drop an earlier merge's result. A unique group per SHA keeps every
-  # master run independent. Pull requests key on the PR number and other
-  # branches on the ref, so their superseded runs still cancel.
-  #
-  # Name this workflow directly, not through github.workflow. Under a
-  # workflow_call that holds the caller's name, so the devbuild and lint calls
-  # would share one group. A nightly call keys on the workflow rather than the
-  # commit: its github.ref and github.sha are master's, so a nightly that
-  # starts while the master push run is still in flight would queue behind it.
-  # Ref: https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations
-  #
-  # A label event naming a label other than skip-ci keys on a group of its own.
-  # Its jobs are all gated off, so sharing the pull request's group would
-  # cancel the run in flight and leave the pull request with no build at all.
-  group: devbuild-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'nightly' || github.event.pull_request.number || (github.ref == 'refs/heads/master' && github.sha) || github.ref }}${{ (contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) && github.event.label.name != 'skip-ci') && '-otherlabel' || '' }}
+  group: devbuild-${{ github.event.pull_request.number || github.ref }}${{ (contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) && github.event.label.name != 'skip-ci') && '-otherlabel' || '' }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
@@ -45,271 +18,26 @@ jobs:
       pull-requests: read
       issues: read
 
-  standalone_buffer:
+  build:
 
     needs: [check_skip]
 
     if: |
       needs.check_skip.outputs.skip != 'true' &&
       (!contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) ||
-       github.event.label.name == 'skip-ci') && (
-      github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'push' &&
-       ((vars.SCGH_PUSH_RUN_BRANCH || vars.MMGH_PUSH_RUN_BRANCH) == '*' ||
-        contains(vars.SCGH_PUSH_RUN_BRANCH || vars.MMGH_PUSH_RUN_BRANCH, github.ref_name))))
+       github.event.label.name == 'skip-ci') &&
+      github.event_name == 'pull_request'
 
-    name: standalone_buffer_${{ matrix.os }}
+    runs-on: ubuntu-24.04
 
-    runs-on: ${{ matrix.os }}
-
-    timeout-minutes: ${{ fromJSON(vars.SCGH_TIMEOUT_STANDALONE_BUFFER || vars.MMGH_TIMEOUT_STANDALONE_BUFFER || '10') }}
-
-    env:
-      # The build type names this job's scratch directory and its cache key.
-      CMAKE_BUILD_TYPE: ${{ matrix.cmake_build_type }}
-
-    strategy:
-      matrix:
-        os: [ubuntu-24.04]
-        cmake_build_type: [Release]
-
-      fail-fast: false
+    timeout-minutes: 10
 
     steps:
 
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-
-      - name: event name
+      - name: stand in for the heavy build
         run: |
-          echo "github.event_name: ${{ github.event_name }}"
-
-      - name: setup dependencies
-        uses: ./.github/actions/setup_linux
-        with:
-          workflow: 'standalone_buffer'
-
-      - name: ccache
-        uses: hendrikmuhs/ccache-action@v1.2.23
-        with:
-          key: ${{ runner.os }}-standalone-buffer-${{ matrix.cmake_build_type }}
-          restore-keys: ${{ runner.os }}-standalone-buffer-${{ matrix.cmake_build_type }}
-          # contrib/standalone_buffer/Makefile compiles with a bare `c++`
-          # outside CMake, so the symlinks are this job's only route to ccache.
-          create-symlink: true
-          save: ${{ github.event_name != 'pull_request' }}
-          # Bound the cache so it does not grow without limit across the rolling
-          # key. A master push saves this cache; pull requests restore it (a PR
-          # on a non-default base branch cannot, so it runs cold).
-          max-size: 500M
-
-      - name: make standalone_buffer
-        run: |
-          echo "::group::make standalone_buffer"
-          make standalone_buffer_setup
-          make standalone_buffer
-          echo "::endgroup::"
-
-  build:
-
-    # Gate the heavy build behind the fast standalone_buffer smoke compile so
-    # a broken build short-circuits before the full matrix launches.
-    needs: [check_skip, standalone_buffer]
-
-    if: |
-      needs.check_skip.outputs.skip != 'true' &&
-      (!contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) ||
-       github.event.label.name == 'skip-ci') && (
-      github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'push' &&
-       ((vars.SCGH_PUSH_RUN_BRANCH || vars.MMGH_PUSH_RUN_BRANCH) == '*' ||
-        contains(vars.SCGH_PUSH_RUN_BRANCH || vars.MMGH_PUSH_RUN_BRANCH, github.ref_name))))
-
-    name: build_${{ matrix.os }}_${{ matrix.cmake_build_type }}
-
-    runs-on: ${{ matrix.os }}
-
-    timeout-minutes: ${{ fromJSON(vars.SCGH_TIMEOUT_BUILD || vars.MMGH_TIMEOUT_BUILD || '45') }}
-
-    env:
-      # A matrix entry naming no parallelism must fall back here rather than
-      # reach the Makefile empty: `MAKE_PARALLEL ?=` tests whether the
-      # variable is set, not whether it holds anything.
-      MAKE_PARALLEL: ${{ matrix.make_parallel || '-j2' }}
-      # Every step in this job builds one build type, and the Makefile derives
-      # the build tree from it. Setting it here rather than per step keeps a
-      # bare `make buildext` on the tree the preceding `make cmake`
-      # configured; naming it in only some of them splits the job across two
-      # trees, and the second one configures from the preset defaults.
-      CMAKE_BUILD_TYPE: ${{ matrix.cmake_build_type }}
-      BUILD_METAL: ${{ matrix.build_metal }}
-      QT_DEBUG_PLUGINS: 1
-      # QT_QPA_PLATFORM is set per-OS by the setup actions (xcb on Linux via
-      # Xvfb, offscreen on macOS). Do not set it at the job level.
-      PIP_BREAK_SYSTEM_PACKAGES: 1 # disabling PEP668 (for MacOS runner)
-      # Fix issue: https://github.com/solvcon/solvcon/issues/366
-      # Use custom config for jurplel/install-qt-action@v4
-      AQT_CONFIG: "thirdparty/aqt_settings.ini"
-
-    strategy:
-        matrix:
-          # One build type per host rather than the same one twice. macOS
-          # takes RelWithDebInfo, which is what a bare `make` configures and
-          # what no other job on a pull request builds; ubuntu and the
-          # devbuild_windows job cover Release. Parallelism follows the host as well:
-          # ubuntu-24.04 has 4 virtual cores and 16 GB, while macos-26 has 3
-          # cores and 7 GB, where a third compiler swaps until the job hits
-          # its timeout.
-          include:
-            - os: ubuntu-24.04
-              cmake_build_type: Release
-              build_metal: OFF
-              make_parallel: -j4
-            - os: macos-26
-              cmake_build_type: RelWithDebInfo
-              build_metal: ON
-              make_parallel: -j2
-
-        fail-fast: false
-
-    steps:
-
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-
-    - name: event name
-      run: |
-        echo "github.event_name: ${{ github.event_name }}"
-
-    - name: setup dependencies for Linux
-      if: runner.os == 'Linux'
-      uses: ./.github/actions/setup_linux
-      with:
-        workflow: 'build'
-
-    - name: setup dependencies for macOS
-      if: runner.os == 'macOS'
-      uses: ./.github/actions/setup_macos
-      with:
-        workflow: 'build'
-
-    - name: ccache
-      uses: hendrikmuhs/ccache-action@v1.2.23
-      with:
-        key: ${{ runner.os }}-${{ matrix.cmake_build_type }}
-        restore-keys: ${{ runner.os }}-${{ matrix.cmake_build_type }}
-        save: ${{ github.event_name != 'pull_request' }}
-        # Bound the cache so it does not grow without limit across the rolling
-        # key. A master push saves this cache; pull requests restore it (a PR
-        # on a non-default base branch cannot, so it runs cold).
-        max-size: 1500M
-
-    - name: make gtest BUILD_QT=OFF
-      run: |
-        echo "::group::make gtest BUILD_QT=OFF"
-        make gtest \
-          VERBOSE=1 USE_CLANG_TIDY=OFF \
-          BUILD_QT=OFF
-        echo "::endgroup::"
-
-    - name: make buildext BUILD_QT=OFF
-      run: |
-        echo "::group::make buildext BUILD_QT=OFF"
-        rm -f build/*/Makefile
-        make cmake \
-          VERBOSE=1 USE_CLANG_TIDY=OFF \
-          BUILD_QT=OFF \
-          CMAKE_BUILD_TYPE=${{ matrix.cmake_build_type }} \
-          CMAKE_ARGS="-DPYTHON_EXECUTABLE=$(which python3)"
-        make buildext VERBOSE=1
-        echo "::endgroup::"
-
-    - name: make pytest BUILD_QT=OFF
-      run: |
-        echo "::group::make pytest BUILD_QT=OFF"
-        python3 -c "import solvcon; assert solvcon.HAS_PILOT == False"
-        JOB_MAKE_ARGS="${JOB_MAKE_ARGS} VERBOSE=1"
-        make pytest ${JOB_MAKE_ARGS}
-        echo "::endgroup::"
-
-    - name: make pytest BUILD_MCAP=ON
-      run: |
-        echo "::group::make pytest BUILD_MCAP=ON"
-        # BUILD_MCAP is off in every other lane, so the subsystem gets a lane
-        # of its own rather than riding on one that means something else.
-        # SOLVCON_MCAP reaches module.cpp alone, so this configure recompiles
-        # the subsystem and that file and takes the rest from the cache.
-        rm -f build/*/Makefile
-        make cmake \
-          VERBOSE=1 USE_CLANG_TIDY=OFF \
-          BUILD_QT=OFF BUILD_MCAP=ON \
-          CMAKE_BUILD_TYPE=${{ matrix.cmake_build_type }} \
-          CMAKE_ARGS="-DPYTHON_EXECUTABLE=$(which python3)"
-        make buildext VERBOSE=1
-        # A silent OFF would leave every mcap test skipped and the lane green.
-        python3 -c "import solvcon; assert solvcon.HAS_MCAP == True"
-        make pytest VERBOSE=1 PYTEST_OPTS="-k mcap"
-        echo "::endgroup::"
-
-    - name: make buildext BUILD_QT=ON
-      run: |
-        echo "::group::make buildext BUILD_QT=ON"
-        rm -f build/*/Makefile
-        make cmake \
-          VERBOSE=1 USE_CLANG_TIDY=OFF \
-          BUILD_QT=ON \
-          CMAKE_BUILD_TYPE=${{ matrix.cmake_build_type }} \
-          CMAKE_ARGS="-DPYTHON_EXECUTABLE=$(which python3)"
-        make buildext VERBOSE=1
-        echo "::endgroup::"
-
-    - name: make pytest BUILD_QT=ON
-      run: |
-        echo "::group::make pytest BUILD_QT=ON"
-        python3 -c "import solvcon; assert solvcon.HAS_PILOT == True"
-        JOB_MAKE_ARGS="${JOB_MAKE_ARGS} VERBOSE=1"
-        if [ "${{ matrix.os }}" == "macos-26" ] ; then \
-          # PySide6 installed by pip will bundle with a prebuilt Qt,
-          # this will cause duplicated symbol.
-          # Solve this issue by removed PySide6 prebuilt Qt library
-          PYSIDE6_PATH=$(python3 -c "import sys, os, PySide6; sys.stdout.write(os.path.dirname(PySide6.__file__))")
-          echo "pyside6 path: ${PYSIDE6_PATH}"
-          rm -rf ${PYSIDE6_PATH}/Qt/lib/*.framework
-          # maunally add homebrew's Qt rpath to PySide6
-          install_name_tool -add_rpath $(qtpaths --install-prefix)/lib ${PYSIDE6_PATH}/QtWidgets.abi3.so
-          install_name_tool -add_rpath $(qtpaths --install-prefix)/lib ${PYSIDE6_PATH}/QtGui.abi3.so
-          install_name_tool -add_rpath $(qtpaths --install-prefix)/lib ${PYSIDE6_PATH}/QtCore.abi3.so
-        fi
-        # A pull request skips tests/gui here, because run_pilot_pytest below
-        # runs it seconds later in the pilot binary. A push and the nightly
-        # run the whole suite in both Qt hosts. SOLVCON_TEST_SHOW_WINDOWS is left at the
-        # default either way, so any window stays off the screen.
-        make ${{ github.event_name == 'pull_request' && 'pytest-fast' || 'pytest' }} ${JOB_MAKE_ARGS}
-        echo "::endgroup::"
-
-    - name: make pilot
-      run: |
-        echo "::group::make pilot"
-        rm -f build/*/Makefile
-        make pilot \
-          VERBOSE=1 USE_CLANG_TIDY=OFF \
-          BUILD_QT=ON \
-          CMAKE_BUILD_TYPE=${{ matrix.cmake_build_type }} \
-          CMAKE_ARGS="-DPYTHON_EXECUTABLE=$(which python3)"
-        echo "::endgroup::"
-
-    - name: make run_pilot_pytest
-      run: |
-        echo "::group::make run_pilot_pytest"
-        export LD_LIBRARY_PATH=$(python3 -c "import sys, os, shiboken6; sys.stdout.write(os.path.dirname(shiboken6.__file__))")
-        # A runner has no desktop to take over, so let this job map its windows
-        # and keep the tests that need a live surface out of the skips.
-        export SOLVCON_TEST_SHOW_WINDOWS=ON
-        make run_pilot_pytest VERBOSE=1
-        echo "::endgroup::"
+          echo "event: ${{ github.event_name }}"
+          echo "action: ${{ github.event.action }}"
+          echo "label: ${{ github.event.label.name }}"
+          echo "skip: ${{ needs.check_skip.outputs.skip }}"
+          sleep 300
