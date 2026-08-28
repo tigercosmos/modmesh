@@ -16,7 +16,9 @@ name: check_skip_ci
 #
 # Adding or removing the label (or pushing a new commit) re-evaluates the
 # decision, because the callers listen to the "labeled"/"unlabeled" pull
-# request activity types in addition to the defaults.
+# request activity types in addition to the defaults.  Those two types carry
+# every label, so an event naming another label reports a skip and leaves the
+# earlier run standing.
 #
 # The "skip" output is "true" only for pull_request events; it is empty for
 # push events, which keeps their existing gating untouched.
@@ -74,6 +76,21 @@ jobs:
               (text || '').split(/\r?\n/)
                 .some(line => control.test(line.trim()));
             const pr = context.payload.pull_request;
+
+            // 0. The callers listen to the labeled and unlabeled activity
+            // types so that the skip-ci label takes effect at once. GitHub
+            // cannot filter those events by label name, so a pull request
+            // tagged with any other label lands here too. Nothing about the
+            // commit or the skip decision changed, and the heavy jobs
+            // already ran, so report a skip and let them stand.
+            const action = context.payload.action;
+            if ((action === 'labeled' || action === 'unlabeled') &&
+                context.payload.label.name !== 'skip-ci') {
+              core.notice('CI skipped: the label that changed is not ' +
+                          '"skip-ci", so the earlier run still stands.');
+              core.setOutput('skip', 'true');
+              return;
+            }
 
             // 1. The skip-ci label, set by a repository member.
             if (pr.labels.some(label => label.name === 'skip-ci')) {
