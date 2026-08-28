@@ -1,0 +1,102 @@
+name: skip_ci_label
+
+# Carries the "skip-ci" label to the runs that a pull request already has.
+# See issue solvcon/modmesh#814.
+#
+# devbuild, devbuild_windows, and lint listen to the opened, reopened, and
+# synchronize activity types, so a label that arrives later reaches nothing.
+# Letting them listen to "labeled" as well does not work: GitHub carries every
+# label on that activity type, and a run whose jobs the label gates off writes
+# a skipped check under the same name as the real one.  That hides a failed
+# check and turns the pull request green.  This workflow reaches the existing
+# runs instead, and writes no check of its own for the gated jobs.
+#
+# Adding the label cancels whatever is still running.  Removing it re-runs
+# what the label stopped, which reports into the original run rather than
+# adding a second set of checks.
+#
+# pull_request_target runs the copy of this file on the base branch, with a
+# token that may cancel and re-run.  The job checks out nothing and runs no
+# code from the pull request.
+
+on:
+  pull_request_target:
+    types: [labeled, unlabeled]
+
+permissions: {}
+
+concurrency:
+  # Serialize the label events of one pull request. Two labels toggled in a
+  # row must not cancel and re-run the same runs at the same time.
+  group: skip_ci_label-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+
+  apply:
+
+    name: skip_ci_label
+
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 5
+
+    permissions:
+      actions: write
+
+    steps:
+
+      - name: cancel or re-run the gated workflows
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // The workflows whose heavy jobs check_skip_ci gates.
+            const workflows =
+              ['devbuild.yml', 'devbuild_windows.yml', 'lint.yml'];
+            const label = context.payload.label.name;
+            if (label !== 'skip-ci') {
+              core.notice(`The "${label}" label does not gate CI.`);
+              return;
+            }
+
+            const {owner, repo} = context.repo;
+            const sha = context.payload.pull_request.head.sha;
+            const adding = context.payload.action === 'labeled';
+
+            for (const workflow of workflows) {
+              const runs = await github.paginate(
+                github.rest.actions.listWorkflowRuns,
+                {owner, repo, workflow_id: workflow, head_sha: sha,
+                 per_page: 100});
+
+              for (const run of runs) {
+                if (adding) {
+                  if (run.status === 'completed') continue;
+                  try {
+                    await github.rest.actions.cancelWorkflowRun(
+                      {owner, repo, run_id: run.id});
+                    core.notice(`Cancelled ${workflow} run ${run.id}.`);
+                  } catch (error) {
+                    // The run finished between the listing and the request.
+                    core.notice(
+                      `Could not cancel ${workflow} run ${run.id}: ` +
+                      `${error.message}`);
+                  }
+                  continue;
+                }
+
+                if (run.status !== 'completed') continue;
+                const jobs = await github.paginate(
+                  github.rest.actions.listJobsForWorkflowRun,
+                  {owner, repo, run_id: run.id, per_page: 100});
+                // Re-run only what the label stopped. A run that built the
+                // commit for real keeps the result it reported.
+                const stopped = jobs.some(
+                  job => job.conclusion === 'skipped' ||
+                         job.conclusion === 'cancelled');
+                if (!stopped) continue;
+                await github.rest.actions.reRunWorkflow(
+                  {owner, repo, run_id: run.id});
+                core.notice(`Re-ran ${workflow} run ${run.id}.`);
+              }
+            }
