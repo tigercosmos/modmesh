@@ -64,19 +64,25 @@ for workflow in $WORKFLOWS; do
     continue
   fi
 
+  # A cancelled run is one this script stopped, and it reported nothing.
   for id in $(runs "$workflow" \
-      '.workflow_runs[] | select(.status == "completed") | .id'); do
-    # Re-run only a run that reported nothing: every job outside the gate was
-    # skipped or cancelled. A run that built, failed, or timed out keeps the
-    # result it reported, so a broken build does not spend the matrix again
-    # over a label. The gate itself always succeeds and says nothing about
-    # whether the run did any work.
+      '.workflow_runs[] | select(.conclusion == "cancelled") | .id'); do
+    gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$id/rerun" >/dev/null
+    echo "::notice::Re-ran $workflow run $id."
+  done
+
+  for id in $(runs "$workflow" \
+      '.workflow_runs[] | select(.status == "completed" and
+                                 .conclusion != "cancelled") | .id'); do
+    # A run that finished with the label on skipped every gated job. One that
+    # built, failed, or timed out keeps the result it reported, so a broken
+    # build does not spend the matrix again over a label. The gate itself
+    # always succeeds and says nothing about whether the run did any work.
     reported="$(gh api --paginate \
       "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" \
       --jq '[.jobs[]
              | select(.name | endswith("check_skip_ci") | not)
-             | select(.conclusion != "skipped" and
-                      .conclusion != "cancelled")] | length')"
+             | select(.conclusion != "skipped")] | length')"
     if [ "$reported" -eq 0 ]; then
       gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$id/rerun" \
         >/dev/null
